@@ -38,6 +38,12 @@ module.exports = handler(['POST'], async (req, res, store) => {
 
   // The stats are only believable next to the save they came from, so a valid cloud save is required with every sync.
   if (s.save === null || !validateSave(s.save, s)) return send(res, 422, { error: 'Invalid save.' });
+  // A face offered in a trade has left the player's hands: a save that still holds it (same ascension, so the same face id) is refused until it is gone.
+  const trx = parseJSON(await store.get('trx:' + lname));
+  if (Array.isArray(trx) && trx.length) {
+    const held = new Set(parseJSON(s.save).faces.map((f) => f[0]));
+    if (!owner && trx.some((e) => e && e.a === s.asc && held.has(e.i))) return send(res, 422, { error: 'A face you offered in a trade is still in your save. Reload the game and try again.' });
+  }
   const verdict = inspect(s, parseJSON(s.save), prev, now);
   if (owner) { verdict.hard = []; verdict.soft = []; }
   if (verdict.hard.length || verdict.soft.length) {
@@ -97,6 +103,8 @@ module.exports = handler(['POST'], async (req, res, store) => {
       store.zadd('lb:book', p.bookMax * 10000 + p.asc, lname),
     );
   }
+  // The save was accepted and no longer holds an offered face, so the record of offered faces can go.
+  if (Array.isArray(trx) && trx.length) writes.push(store.del('trx:' + lname));
   await Promise.all(writes);
 
   const [rk, total] = await Promise.all([store.zrevrank('lb:life', lname), store.zcard('lb:life')]);

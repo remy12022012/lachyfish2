@@ -254,6 +254,16 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 #updov .ut{font-family:var(--fd);font-size:24px;letter-spacing:.8px;margin-bottom:6px}
 #updov p{margin:0 0 12px;font-size:14px;font-weight:500}
 @media (max-height:480px){#updov .uc{padding:8px 12px 10px}#updov .ut{font-size:20px;margin-bottom:3px}#updov p{margin-bottom:8px;font-size:13px}}
+#trov{position:absolute;inset:0;z-index:38;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,3,40,.88);animation:trfade .2s ease-out}
+#trov.show{display:flex}
+#trov .uc{width:min(400px,100%);padding:14px 16px 16px;border-radius:20px;text-align:center;background:linear-gradient(#5a2bb8,#2a0f70);border:4px solid #ff5ac8;box-shadow:0 0 40px rgba(255,90,200,.55)}
+#trov .ut{font-family:var(--fd);font-size:26px;letter-spacing:.8px;margin-bottom:6px;color:#ffe36b}
+#trov p{margin:0 0 12px;font-size:15px;font-weight:500}
+#trov .tb{display:flex;gap:10px;justify-content:center}
+@keyframes trfade{from{opacity:0}to{opacity:1}}
+.perf2 #trov{animation:none}
+.tools .acf{flex:1 1 120px;min-width:0;margin:0}
+@media (max-height:480px){#trov .uc{padding:8px 12px 10px}#trov .ut{font-size:20px;margin-bottom:3px}#trov p{margin-bottom:8px;font-size:13px}}
 /* ---------- Panel: big vertical buttons, one drawer open at a time to their left ---------- */
 #panel{width:clamp(92px,9.5vw,128px);position:relative;border-left-width:5px}
 #tabs{flex:1;min-height:0;display:flex;flex-direction:column;gap:clamp(4px,1vh,10px);padding:clamp(5px,1.2vh,10px) 7px;overflow-y:auto;overflow-x:hidden}
@@ -293,9 +303,12 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 <button class='tab' data-tab='stats'><i>&#128202;</i><span>Stats</span></button>
 <button class='tab' data-tab='asc'><i>&#127775;</i><span>Ascend</span></button>
 <button class='tab' data-tab='top'><i>&#127942;</i><span>Top</span></button>
+<button class='tab' data-tab='trade'><i>&#129309;</i><span>Trade</span></button>
+<button class='tab' data-tab='settings'><i>&#9881;</i><span>Settings</span></button>
 </div>
 </div>
 <div id='updov' role='alertdialog' aria-modal='true'><div class='uc'><div class='ut'>&#127881; Update required</div><p id='updmsg'></p><button class='btn gold' id='updgo'>Reload now</button></div></div>
+<div id='trov' role='alertdialog' aria-modal='true'><div class='uc'><div class='ut'>&#129309; Trade invite</div><p><b id='trovn'></b> wants to trade faces with you.</p><div class='tb'><button class='btn gold' data-a='tracc'>Accept</button><button class='btn red' data-a='trdec'>Decline</button></div></div></div>
 <div id='gate' role='dialog' aria-modal='true'><div class='gc'><div class='gt'>&#127907; Lachy Fish</div><p>Create an account or sign in to play. Your progress is saved to the cloud and you get a place on the leaderboard.</p><input class='acf' id='gu' maxlength='16' placeholder='Username' autocomplete='username'><input class='acf' id='gp' type='password' maxlength='72' placeholder='Password (6+ characters)' autocomplete='current-password'><div class='gb'><button class='btn gold' id='gsu'>Create account</button><button class='btn green' id='gli'>Sign in</button></div><div id='gmsg'></div><button class='gskip' id='gsk'>Play offline for now</button></div></div>
 </div>
 <script>
@@ -452,7 +465,7 @@ function openChest(){
   tone(523,0.1,'square',0.05);tone(784,0.12,'square',0.05,0.08);tone(1047,0.2,'square',0.05,0.16);
   chest=null;chestT=Math.floor(rnd(4500,8000));dirty=true;
 }
-function newG(){return {coins:0,run:0,food:0,ucv:1,gems:0,asc:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,guard:0,farm:0,soil:0,feed:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
+function newG(){return {coins:0,run:0,food:0,ucv:1,gems:0,asc:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,guard:0,farm:0,soil:0,feed:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,nf:0,ft:0,nt:0,ti:0,trd:[],bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
 
 // ---------- STATE ----------
 var G=newG(),faces=[],hooks=[],parts=[],ftx=[],ambient=[],bubble=null;
@@ -546,6 +559,9 @@ function earn(v){G.coins+=v;G.run+=v;qProg('earn',v);}
 function fmt(n){
   if(!isFinite(n))return '0';
   if(n<1000)return n<10?(Math.round(n*10)/10).toString():Math.floor(n).toString();
+  var nf=G?G.nf|0:0;
+  if(nf===2&&n<1e15)return Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  if(nf>0){var ex=Math.floor(Math.log10(n));return (n/Math.pow(10,ex)).toFixed(2)+'e'+ex;}
   var s=['K','M','B','T','Qa','Qi','Sx','Sp'],i=-1;
   while(n>=1000&&i<s.length-1){n/=1000;i++;}
   return (n<10?n.toFixed(2):n<100?n.toFixed(1):n.toFixed(0))+s[i];
@@ -618,6 +634,7 @@ function droplets(x,y,n){
   for(var i=0;i<n;i++)parts.push({k:2,x:x+rnd(-8,8),y:y,vx:rnd(-1.6,1.6),vy:-rnd(1.5,4),g:0.22,life:40,max:40,col:'#c8f6ff',sz:rnd(2,4),rot:0,vr:0,gr:0});
 }
 function floatText(x,y,s,col,size){
+  if(G&&G.ft)return;
   size=size||12;
   // Collision avoidance: nudge the new popup upward until it no longer sits on a live one.
   for(var tries=0;tries<8;tries++){
@@ -645,7 +662,7 @@ function baseFullText(x,y,v){
     bfT=ftx[ftx.length-1];bfT.y0=bfT.y;
   }
 }
-function toast(s){toastEl.textContent=s;toastEl.classList.add('show');clearTimeout(tToast);tToast=setTimeout(function(){toastEl.classList.remove('show');},2000);}
+function toast(s,force){if(G&&G.nt&&!force)return;toastEl.textContent=s;toastEl.classList.add('show');clearTimeout(tToast);tToast=setTimeout(function(){toastEl.classList.remove('show');},2000);}
 var banQ=[],banBusy=false;
 function banner(title,sub,col,urgent,cls){
   var i;
@@ -1617,7 +1634,21 @@ function bookHtml(){
 }
 function ascHtml(){
   var g=asGain();
-  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A restart. Resets coins, Food, gems, upgrades, the Book, quests and achievements. You keep your 3 best faces (back at level 1), your ascension count and your total earnings.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
+  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A restart. Resets coins, Food, gems, upgrades, the Book, quests and achievements. You keep your 3 best faces (back at level 1), your ascension count and your total earnings.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div>`;
+}
+function settingsHtml(){
+  function seg(k,cur,opts){var s='',i;for(i=0;i<opts.length;i++)s+=`<button class='btn seg${cur===i?' on':''}' data-a='setv' data-k='${k}' data-v='${i}'>${opts[i]}</button>`;return s;}
+  function card(t,d,ctl,col){return `<div class='card shopc' style='--rc:${col||'#7dd3ff'}'><div class='info'><b>${t}</b><small>${d}</small><div class='tools' style='margin:5px 0 0'>${ctl}</div></div></div>`;}
+  var h=`<div class='sech'>&#9881; Settings</div><div class='note'>Saved with your game and kept when you ascend.</div>`;
+  h+=card('Performance mode','Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.',`<button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button>`);
+  h+=card('Sound','Fishing, level-up and trade sounds.',seg('mute',G.mute?1:0,['On','Off']),'#9be8a8');
+  h+=card('Number format','How big numbers are shown. Example: '+fmt(1234567)+'.',seg('nf',G.nf|0,['Short','Scientific','Full']),'#ffe36b');
+  h+=card('Floating numbers','The coin and level numbers that float up from the water and your faces.',seg('ft',G.ft?1:0,['Show','Hide']),'#ffe36b');
+  h+=card('Pop-up messages','The short messages that appear over the water, like tips and sale notices. Trade alerts always show.',seg('nt',G.nt?1:0,['Show','Hide']),'#ffe36b');
+  h+=card('Trade invites','Allow other players to invite you to trade. Blocking also stops invites that are already waiting.',seg('ti',G.ti?1:0,['Allow','Block']),'#ff5ac8');
+  h+=acct.token?`<div class='card shopc'><div class='info'><b>Account</b><small>Signed in as <b>${acct.name}</b>.</small></div><button class='btn' data-a='logout'>Sign out</button></div>`:`<div class='card shopc'><div class='info'><b>Account</b><small>Not signed in.</small></div></div>`;
+  h+=`<div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
+  return h;
 }
 function srow(a,b){return `<div class='srow'><span>${a}</span><b>${b}</b></div>`;}
 function nextAscAt(){return ascCost();}
@@ -1649,14 +1680,14 @@ function statsHtml(){
   h+=srow('Farm view','F');
   return h;
 }
-var TABT={faces:'Faces',shop:'Upgrades',crew:'Crew',farm:'Farm',quests:'Quests',book:'Book',stats:'Stats',asc:'Ascend',top:'Top'};
+var TABT={faces:'Faces',shop:'Upgrades',crew:'Crew',farm:'Farm',quests:'Quests',book:'Book',stats:'Stats',asc:'Ascend',top:'Top',trade:'Trade',settings:'Settings'};
 function render(){
   var st=body.scrollTop,h='',tb0=document.querySelectorAll('.tab'),i0;
   for(i0=0;i0<tb0.length;i0++)tb0[i0].classList.toggle('on',tb0[i0].dataset.tab===tab);
   $('drawer').classList.toggle('open',!!tab);
   if(!tab){dirty=false;return;}
   $('dtitle').textContent=TABT[tab]||'';
-  if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='farm')h=farmHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else h=ascHtml();
+  if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='farm')h=farmHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else if(tab==='settings')h=settingsHtml();else if(tab==='trade')h=tradeHtml();else h=ascHtml();
   body.innerHTML=h;body.scrollTop=st;
   var tb=document.querySelectorAll('.tab');
   for(var i=0;i<tb.length;i++)tb[i].classList.toggle('on',tb[i].dataset.tab===tab);
@@ -1945,7 +1976,7 @@ function keepFaces(){return faces.slice().sort(function(a,b){return b.rar-a.rar|
 function ascend(){
   if((G.asc|0)>=MAX_ASC){toast('You have reached the maximum ascension ('+MAX_ASC+').');return;}if(asGain()<1)return;
   var o=G,n=newG(),keep=keepFaces();
-  n.asc=o.asc+1;n.mute=o.mute;n.perf=o.perf;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
+  n.asc=o.asc+1;n.mute=o.mute;n.perf=o.perf;n.nf=o.nf;n.ft=o.ft;n.nt=o.nt;n.ti=o.ti;n.trd=o.trd;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
   G=n;faces=[];hooks=[];frenzy=0;autoAcc=0;bubble=null;chest=null;combo=0;wx=null;wxT=7200;chestT=5400;setTide(0,2400);recent=[];sinkers=[];ultraAnim=null;nbAnim=null;ascArm=false;
   stage.classList.remove('ult');hintEl.style.display='';
   keep.forEach(function(k){var f=makeFace(k[0],k[1],1),key=k[0]+'_'+k[1];G.book[key]=(G.book[key]||0)+1;placeInWater(f);faces.push(f);});
@@ -1985,6 +2016,8 @@ function onAct(e){
   else if(a==='clearcrew'){crewList().forEach(function(x){setCrew(x,false);});}
   else if(a==='asc'){if(!ascArm)ascArm=true;else{ascArm=false;ascend();}dirty=true;}
   else if(a==='perf'||a==='perfset'){G.perf=a==='perf'?(G.perf?0:1):(+b.dataset.v|0);applyPerf();dirty=true;}
+  else if(a==='setv'){k=b.dataset.k;var sv=+b.dataset.v|0;if(k==='nf')G.nf=clamp(sv,0,2);else if(k==='ft')G.ft=clamp(sv,0,1);else if(k==='nt')G.nt=clamp(sv,0,1);else if(k==='ti'){G.ti=clamp(sv,0,1);if(typeof tradePrefs==='function')tradePrefs();}else if(k==='mute'){G.mute=clamp(sv,0,1);$('snd').innerHTML=G.mute?'&#128263;':'&#128266;';}saveGame();}
+  else if(a.charAt(0)==='t'&&a.charAt(1)==='r'&&typeof trAct==='function'){trAct(a,b);}
   else if(a==='tutor'){G.tut=0;tutShown=-1;tutTick();toast('Tutorial restarted');}
   else if(a==='wipe'){
     if(!wipeArm)wipeArm=true;
@@ -1994,7 +2027,7 @@ function onAct(e){
 }
 body.addEventListener('click',onAct);$('sel').addEventListener('click',onAct);
 function gotoTab(x){tab=(tab===x)?'':x;wipeArm=false;ascArm=false;body.scrollTop=0;render();}
-(function(){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].title=(TABT[tb[i].dataset.tab]||'')+' ('+(i+1)+')';})();
+(function(){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].title=(TABT[tb[i].dataset.tab]||'')+' ('+(i<9?i+1:({trade:'T',settings:'S'})[tb[i].dataset.tab])+')';})();
 $('tabs').addEventListener('click',function(e){
   var b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(b&&b.dataset&&b.dataset.tab)gotoTab(b.dataset.tab);
@@ -2004,6 +2037,168 @@ $('daily').onclick=claimDaily;
 $('snd').onclick=function(){G.mute=G.mute?0:1;this.innerHTML=G.mute?'&#128263;':'&#128266;';};
 $('panel').addEventListener('pointerdown',function(){pressPanel=true;});
 $('vFish').onclick=function(){setView('fish');};$('vCrew').onclick=function(){setView('crew');};$('vBase').onclick=function(){setView('base');};$('vFarm').onclick=function(){setView('farm');};
+
+// ---------- TRADING ----------
+// Player-to-player trades are brokered by api/trade.js (invite, accept, offer, confirm). The server holds an offered face in escrow: this client takes it out of the Base once the offer is accepted, and adds the faces that arrive in its delivery box. G.trd remembers which delivery entries were added, so a face is never added twice.
+var tr={trade:null,box:[],msg:'',name:'',busy:false,poll:false,acking:false,last:0,sig:'',stuck:0,pref:-1};
+var trOv=$('trov');
+function trEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('"').join('&quot;').split("'").join('&#39;');}
+function trLive(t){return !!t&&(t.s==='invited'||t.s==='active');}
+function trShowTab(){if(tab!=='trade'){tab='trade';wipeArm=false;ascArm=false;body.scrollTop=0;}dirty=true;render();}
+function trOvSync(){
+  var t=tr.trade,show=!!(t&&t.s==='invited'&&!t.inviter&&acct.token);
+  if(show){$('trovn').textContent=t.partner;if(!trOv.classList.contains('show')){tone(520,0.12,'triangle',0.07);tone(780,0.18,'triangle',0.07,0.12);tone(1040,0.2,'triangle',0.07,0.3);}}
+  trOv.classList.toggle('show',show);
+}
+function trRefresh(){trOvSync();if(tab==='trade')renderSafe();}
+function trPost(p,cb){api('api/trade',p).then(function(r){try{cb(r);}catch(e){if(window.console)console.error(e);}if(!r.ok&&r.code!==401&&r.code!==0)trFetch();});}
+function trFetch(){tr.last=Date.now();tr.poll=true;api('api/trade').then(function(r){tr.poll=false;if(r.ok)trApply(r.j);});}
+function tradePrefs(){tr.pref=G.ti?1:0;if(!acct.token)return;api('api/trade',{action:'prefs',block:!!G.ti}).then(function(r){if(r.ok)trApply(r.j);});}
+function trAck(){if(tr.acking)return;tr.acking=true;trPost({action:'ack'},function(r){tr.acking=false;if(r.ok)trApply(r.j);trRefresh();});}
+// Adds the faces waiting in the delivery box (traded faces and faces returned from a cancelled offer), then tells the server they were collected.
+function trBox(){
+  var done=[],got=[],stuck=0,seen=G.trd||(G.trd=[]),i,e,f,r,m,l,key;
+  for(i=0;i<tr.box.length;i++){
+    e=tr.box[i];
+    if(!e||typeof e.d!=='string'||!Array.isArray(e.f))continue;
+    if(seen.indexOf(e.d)>=0){done.push(e.d);continue;}
+    r=e.f[0]|0;m=e.f[1]|0;l=e.f[2]|0;
+    if(r<0||r>=RAR.length||m<0||m>=MUT.length||l<1||l>MAXLV){done.push(e.d);continue;}
+    if(faces.length>=capN()){stuck++;continue;}
+    f=makeFace(r,m,l);f.tot=Math.max(0,+e.f[3]||0);
+    key=r+'_'+m;
+    if(e.why==='trade'&&!G.book[key]){G.book[key]=1;disc++;}
+    placeInWater(f);faces.push(f);
+    seen.push(e.d);if(seen.length>60)seen.shift();
+    done.push(e.d);got.push([f,e]);
+  }
+  tr.stuck=stuck;
+  if(!done.length)return;
+  saveGame();dirty=true;
+  got.forEach(function(g){
+    var nm=faceName(g[0]);
+    if(g[1].why==='trade'){banner('TRADE COMPLETE!','You received '+nm+(g[1].from?' from '+g[1].from:''),'#ff5ac8');tone(660,0.12,'triangle',0.06);tone(990,0.2,'triangle',0.06,0.1);}
+    else toast(nm+' is back in your Base.',true);
+  });
+  trPost({action:'claim',ids:done},function(r){if(r.ok)trApply(r.j);});
+  setTimeout(function(){acctSubmit(false);},1500);
+}
+// Every response from api/trade comes through here: it updates the trade, shows or hides the invite overlay, collects deliveries and redraws the tab when something changed.
+function trApply(j){
+  if(!j||typeof j!=='object')return;
+  var old=tr.trade,t=j.trade||null;
+  tr.trade=t;tr.box=Array.isArray(j.box)?j.box:[];
+  if(t&&t.s==='invited'&&!t.inviter&&G.ti&&!tr.acking)trPost({action:'decline'},function(r){if(r.ok){trApply(r.j);trAck();}});
+  if(t&&old&&old.id===t.id&&old.s!==t.s){
+    if(old.s==='invited'&&t.s==='active'){if(t.inviter){toast(t.partner+' accepted! Pick a face to offer.',true);trShowTab();}}
+    else if(trLive(old)&&!trLive(t)){
+      if(t.s==='declined'&&t.inviter)toast(t.partner+' declined your invite.',true);
+      else if(t.s==='cancelled')toast('The trade was cancelled.',true);
+      else if(t.s==='expired')toast('The trade timed out.',true);
+      else if(t.s==='failed')toast('The trade could not finish, so the faces were returned.',true);
+    }
+  }
+  if(t&&!trLive(t)&&tab!=='trade')trAck();
+  trBox();trOvSync();
+  var sig=JSON.stringify([t,tr.box.length,tr.stuck|0,tr.msg,tab==='trade'?faces.length:0]);
+  if(sig!==tr.sig){tr.sig=sig;if(tab==='trade')renderSafe();}
+}
+// The server holds the offered face from the player's last synced save, so the game syncs first and waits for it to finish.
+function trSyncNow(cb){
+  if(devTaint||G.dt===1){cb();return;}
+  var n=0;
+  (function wait(){
+    if(acct.subBusy&&n++<60){setTimeout(wait,100);return;}
+    acctSubmit(true);
+    var m=0;
+    (function w2(){if(acct.subBusy&&m++<80){setTimeout(w2,100);return;}cb();})();
+  })();
+}
+function trOffer(f,retry){
+  tr.busy=true;if(!retry)tr.msg='';trRefresh();
+  trSyncNow(function(){
+    api('api/trade',{action:'offer',fid:f.id,face:[f.rar,f.mut,f.lvl]}).then(function(r){
+      tr.busy=false;
+      if(r.ok){
+        var g=faceById(f.id);if(g){removeFace(g);saveGame();}
+        tr.msg='';trApply(r.j);
+        setTimeout(function(){acctSubmit(false);},5500);
+      }else if(r.j&&r.j.stale&&!retry){
+        tr.msg='Syncing your game, one moment...';trRefresh();
+        setTimeout(function(){trOffer(f,true);},5500);return;
+      }else{tr.msg=(r.j&&r.j.error)||'Could not offer that face.';trFetch();}
+      trRefresh();
+    });
+  });
+}
+function trAct(a,b){
+  if(!acct.token)return;
+  var t=tr.trade,f,nm,el;
+  tr.msg='';
+  if(a==='trinvite'){
+    el=$('trname');if(el){tr.name=el.value;el.blur();}
+    nm=(tr.name||'').trim();
+    if(!/^[A-Za-z0-9_.-]{3,16}$/.test(nm)){tr.msg='Enter a valid player name (3 to 16 letters, digits, _ . -).';trRefresh();return;}
+    tr.busy=true;trRefresh();
+    trPost({action:'invite',username:nm},function(r){tr.busy=false;if(r.ok){tr.name='';trApply(r.j);}else tr.msg=(r.j&&r.j.error)||'Could not send the invite.';trRefresh();});
+  }
+  else if(a==='tracc'){trPost({action:'accept'},function(r){if(r.ok){trApply(r.j);trShowTab();}else{tr.msg=(r.j&&r.j.error)||'Could not accept.';trRefresh();}});}
+  else if(a==='trdec'){trPost({action:'decline'},function(r){if(r.ok){trApply(r.j);trAck();}});}
+  else if(a==='trcancel'){trPost({action:'cancel'},function(r){if(r.ok){trApply(r.j);trAck();toast('Trade cancelled.',true);}});}
+  else if(a==='troffer'){f=faceById(+b.dataset.id);if(f&&!f.crew&&!f.farm&&!f.lock&&t&&t.s==='active'&&!tr.busy)trOffer(f,false);}
+  else if(a==='trretract'){trPost({action:'offer',fid:null},function(r){if(r.ok)trApply(r.j);});}
+  else if(a==='trconfirm'){trPost({action:'confirm',v:+b.dataset.v|0},function(r){if(r.ok)trApply(r.j);else{tr.msg=(r.j&&r.j.error)||'Could not confirm.';trRefresh();}});}
+  else if(a==='trunconf'){trPost({action:'unconfirm'},function(r){if(r.ok)trApply(r.j);});}
+  else if(a==='trok'){trAck();}
+}
+function trCard(r,m,l,tot,btn){
+  return `<div class='card r${r}'><div class='fi m${m}${spCls(r)}'></div><div class='info'><b class='${isRb(r)?'rbt':''}${nmCls(r)}'>${faceName({rar:r,mut:m})}</b><small>Lv ${l} &bull; earned $${fmt(tot||0)}</small></div>${btn?`<div class='acts'>${btn}</div>`:''}</div>`;
+}
+function trEligible(){return faces.filter(function(f){return !f.crew&&!f.farm&&!f.lock;}).sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;});}
+function trInviteForm(){
+  return `<div class='card shopc' style='--rc:#ff5ac8'><div class='info'><b>Invite a player</b><small>Type their exact username. They get an invite over their whole screen and can accept or decline.</small><div class='tools' style='margin:6px 0 0'><input class='acf' id='trname' maxlength='16' placeholder='Username' value='${trEsc(tr.name)}' autocomplete='off'><button class='btn gold' data-a='trinvite'${tr.busy?' disabled':''}>Invite</button></div></div></div><div class='note'>How it works: you each pick one face, then you both press Confirm and the faces swap. Any face can be traded for any face, as long as it is not on your crew or farm and not locked. Changing an offer clears both confirmations.</div>`;
+}
+function tradeHtml(){
+  var t=tr.trade,h=`<div class='sech'>&#129309; Trade</div>`,p,i,both,st,ls;
+  if(!acct.token)return h+`<div class='note big'>Sign in to trade faces with other players.<br>Open the Top tab to create an account or sign in.</div>`;
+  if(tr.msg)h+=`<div class='note' style='color:#ffb4b4'>${trEsc(tr.msg)}</div>`;
+  if(tr.stuck>0)h+=`<div class='note' style='color:#ffe36b'>&#127873; ${tr.stuck} face${tr.stuck===1?'':'s'} waiting for you. Free a Base slot by selling a face to receive ${tr.stuck===1?'it':'them'}.</div>`;
+  if(G.ti)h+=`<div class='note'>You are blocking trade invites. Turn that off in Settings to be invited.</div>`;
+  if(!t)return h+trInviteForm();
+  p=trEsc(t.partner);
+  if(t.s==='invited'){
+    if(t.inviter)return h+`<div class='card shopc' style='--rc:#ff5ac8'><div class='info'><b>Waiting for ${p}</b><small>They have two minutes to accept your invite.</small></div><button class='btn red' data-a='trcancel'>Cancel</button></div>`;
+    return h+`<div class='card shopc' style='--rc:#ff5ac8'><div class='info'><b>${p} invited you to trade</b><small>Accept to swap one face each.</small></div><button class='btn gold' data-a='tracc'>Accept</button><button class='btn red' data-a='trdec'>Decline</button></div>`;
+  }
+  if(t.s!=='active'){
+    var MS={done:'Trade complete! Your new face is in your Base.',declined:'The invite was declined.',cancelled:'The trade was cancelled. Any face you offered is back in your Base.',expired:'The trade timed out. Any face you offered is back in your Base.',failed:'The trade could not finish, so it was cancelled and the faces were returned.'};
+    return h+`<div class='card shopc' style='--rc:#9be8a8'><div class='info'><b>${t.s==='done'?'Trade with '+p+' finished':'Trade with '+p+' ended'}</b><small>${MS[t.s]||'This trade is over.'}</small></div><button class='btn buy' data-a='trok'>OK</button></div>`+trInviteForm();
+  }
+  both=!!(t.mine&&t.theirs);
+  h+=`<div class='note'>Trading with <b>${p}</b>. Offer one face each, then both press Confirm.</div>`;
+  h+=`<div class='sech'>You offer</div>`+(t.mine?trCard(t.mine[0],t.mine[1],t.mine[2],t.mine[3],`<button class='mini' data-a='trretract' title='Take it back'>&#10005;</button>`):`<div class='note'>Pick a face from your list below.</div>`);
+  h+=`<div class='sech'>${p} offers</div>`+(t.theirs?trCard(t.theirs[0],t.theirs[1],t.theirs[2],t.theirs[3],''):`<div class='note'>Waiting for ${p} to pick a face...</div>`);
+  st=!both?'Both players need to offer a face first.':(t.myConf&&t.theirConf)?'Completing the trade...':t.myConf?'You confirmed. Waiting for '+p+'...':t.theirConf?p+' confirmed. It is your turn.':'Check both faces, then confirm.';
+  h+=`<div class='note'>${st}</div><div class='tools'>`;
+  h+=t.myConf?`<button class='btn' data-a='trunconf'>Undo confirm</button>`:`<button class='btn gold' data-a='trconfirm' data-v='${t.v}'${both?'':' disabled'}>Confirm trade</button>`;
+  h+=`<button class='btn red' data-a='trcancel'>Cancel trade</button></div>`;
+  ls=trEligible();
+  h+=`<div class='sech'>Your faces</div>`;
+  if(!ls.length)h+=`<div class='note'>You have no faces that can be traded right now. Crew, Farm and locked faces are left out.</div>`;
+  for(i=0;i<ls.length;i++)h+=trCard(ls[i].rar,ls[i].mut,ls[i].lvl,ls[i].tot,`<button class='btn gold mini2' data-a='troffer' data-id='${ls[i].id}'${tr.busy?' disabled':''}>Offer</button>`);
+  return h;
+}
+body.addEventListener('input',function(e){if(e.target&&e.target.id==='trname')tr.name=e.target.value;});
+body.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&e.target.id==='trname'){e.preventDefault();trAct('trinvite');}});
+trOv.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b&&b.dataset&&b.dataset.a)trAct(b.dataset.a,b);});
+setInterval(function(){
+  if(!acct.token){if(tr.trade||tr.box.length){tr.trade=null;tr.box=[];tr.sig='';trRefresh();}tr.pref=-1;return;}
+  if(tr.poll||document.hidden||loading||updReq)return;
+  if(tr.pref!==(G.ti?1:0)){tradePrefs();return;}
+  var gap=(trLive(tr.trade)||tab==='trade')?2500:7000;
+  if(Date.now()-tr.last<gap)return;
+  trFetch();
+},1000);
 
 // ---------- TUTORIAL ----------
 // A short guided intro. Steps advance by themselves when the player does the thing, and every step also has Next and Skip. Progress lives in G.tut (99 = finished or skipped).
@@ -2063,6 +2258,8 @@ window.addEventListener('keydown',function(e){
   else if(e.key==='b'||e.key==='B'){setView(view==='base'?'fish':'base');}
   else if(e.key==='f'||e.key==='F'){setView(view==='farm'?'fish':'farm');}
   else if(e.key==='c'||e.key==='C'){setView(view==='crew'?'fish':'crew');}
+  else if(e.key==='t'||e.key==='T'){gotoTab('trade');}
+  else if(e.key==='s'||e.key==='S'){gotoTab('settings');}
 });
 
 // ---------- DEV PANEL (hidden, admin-gated) ----------
@@ -2319,11 +2516,11 @@ function loadGame(){
     var o=JSON.parse(s),g=o.G,d=newG(),k;
     // Saves from before the season reset (or without a season) are discarded: the game starts fresh.
     if(!g||o.S!==SEASON){try{localStorage.removeItem(KEY);}catch(_){}return;}
-    ['coins','run','food','gems','asc','nid','caught','ts','mute','perf','as','qn','chests','qdone','dl','ds','buy','pt','lp','tut','dt'].forEach(function(key){if(typeof g[key]==='number'&&isFinite(g[key]))d[key]=g[key];});
+    ['coins','run','food','gems','asc','nid','caught','ts','mute','perf','nf','ft','nt','ti','as','qn','chests','qdone','dl','ds','buy','pt','lp','tut','dt'].forEach(function(key){if(typeof g[key]==='number'&&isFinite(g[key]))d[key]=g[key];});
     // Saves from before ascension-scaling caps (no ucv) are brought under today's cap and the coins spent on the removed levels are refunded.
     var lim0=clamp(d.asc|0,0,MAX_ASC);
     for(k in d.up)if(g.up&&typeof g.up[k]==='number'){var lv=clamp(Math.floor(g.up[k]),0,UPS[k].max),cp=upMax(k,lim0);if(g.ucv!==1&&lv>cp){for(var j=cp;j<lv;j++)d.coins+=Math.ceil(UPS[k].b*Math.pow(UPS[k].g,j));lv=cp;}d.up[k]=lv;}
-    d.asc=clamp(d.asc|0,0,MAX_ASC);d.coins=clamp(d.coins,0,1e21);d.run=clamp(d.run,0,1e21);d.lp=clamp(d.lp,0,1e24);d.gems=clamp(d.gems,0,1e9);d.food=clamp(d.food,0,FOOD_MAX);d.caught=clamp(d.caught,0,1e9);d.as=clamp(d.as|0,-1,3);d.perf=clamp(d.perf|0,0,2);if(d.buy!==10&&d.buy!==0)d.buy=1;
+    d.asc=clamp(d.asc|0,0,MAX_ASC);d.coins=clamp(d.coins,0,1e21);d.run=clamp(d.run,0,1e21);d.lp=clamp(d.lp,0,1e24);d.gems=clamp(d.gems,0,1e9);d.food=clamp(d.food,0,FOOD_MAX);d.caught=clamp(d.caught,0,1e9);d.as=clamp(d.as|0,-1,3);d.perf=clamp(d.perf|0,0,2);d.nf=clamp(d.nf|0,0,2);d.ft=clamp(d.ft|0,0,1);d.nt=clamp(d.nt|0,0,1);d.ti=clamp(d.ti|0,0,1);if(Array.isArray(g.trd))d.trd=g.trd.filter(function(x){return typeof x==='string'&&x.length<=24;}).slice(-60);if(d.buy!==10&&d.buy!==0)d.buy=1;
     if(typeof g.tut!=='number'&&d.caught>0)d.tut=99;
     if(g.bf)['luck','mut','cash'].forEach(function(bk){if(typeof g.bf[bk]==='number'&&isFinite(g.bf[bk]))d.bf[bk]=clamp(g.bf[bk],0,600);});
     if(g.ach)for(k in g.ach)if(g.ach[k]===1)d.ach[k]=1;

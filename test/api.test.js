@@ -642,6 +642,88 @@ async function t(name, fn) {
     assert.strictEqual((await call('GET', '/api/me', undefined, O)).j.rank, 1);
   });
 
+  // ---- trading ----
+  let T1, T2;
+  const tc = (m, b, tok) => call(m, '/api/trade', b, tok);
+  const T1F = [[1, 2, 0, 1, 0, 0, 0, 0], [2, 1, 0, 1, 0, 0, 0, 0], [3, 0, 0, 1, 0, 1, 0, 0]];
+  const T2F = [[1, 1, 0, 1, 0, 0, 0, 0], [2, 0, 0, 1, 0, 0, 0, 0], [3, 2, 1, 1, 0, 0, 0, 0]];
+  const T1O = { top: [[2, 0, 1], [1, 0, 1], [0, 0, 1]] };
+  const T2O = { top: [[2, 1, 1], [1, 0, 1], [0, 0, 1]] };
+  await t('trade: needs sign-in, and invites are validated', async () => {
+    T1 = await signupAs('trade_a', 'secret-a1', 91);
+    T2 = await signupAs('trade_b', 'secret-b1', 92);
+    assert.strictEqual((await tc('GET')).code, 401);
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'trade_b' })).code, 401);
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'x' }, T1)).code, 400);
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'TRADE_A' }, T1)).code, 400, 'not yourself');
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'nobody_here' }, T1)).code, 404);
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 1, face: [2, 0, 1] }, T1)).code, 404, 'not in a trade');
+    assert.strictEqual((await lsub('trade_a', T1, T1O, { faces: T1F })).code, 200);
+    assert.strictEqual((await lsub('trade_b', T2, T2O, { faces: T2F })).code, 200);
+  });
+  await t('trade: blocking invites stops new invites', async () => {
+    assert.strictEqual((await tc('POST', { action: 'prefs', block: true }, T2)).code, 200);
+    const r = await tc('POST', { action: 'invite', username: 'trade_b' }, T1);
+    assert.strictEqual(r.code, 403, JSON.stringify(r.j));
+    assert.strictEqual((await tc('POST', { action: 'prefs', block: false }, T2)).code, 200);
+  });
+  await t('trade: invite, accept, offer, confirm swaps the faces through the delivery boxes', async () => {
+    let r = await tc('POST', { action: 'invite', username: 'trade_b' }, T1);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual(r.j.trade.s, 'invited'); assert.ok(r.j.trade.inviter);
+    r = await tc('GET', undefined, T2);
+    assert.strictEqual(r.j.trade.s, 'invited'); assert.strictEqual(r.j.trade.inviter, false); assert.strictEqual(r.j.trade.partner, 'trade_a');
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'trade_a' }, T2)).code, 409, 'busy');
+    assert.strictEqual((await tc('POST', { action: 'accept' }, T1)).code, 409, 'only the invited player may accept');
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 1, face: [2, 0, 1] }, T1)).code, 409, 'no offers before accepting');
+    assert.strictEqual((await tc('POST', { action: 'accept' }, T2)).code, 200);
+    // faces that cannot be offered
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 3, face: [0, 0, 1] }, T1)).code, 409, 'locked face');
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 99, face: [2, 0, 1] }, T1)).code, 409, 'unknown face');
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 1, face: [5, 0, 1] }, T1)).code, 409, 'face does not match the save');
+    r = await tc('POST', { action: 'offer', fid: 1, face: [2, 0, 1] }, T1);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.deepStrictEqual(r.j.trade.mine.slice(0, 3), [2, 0, 1]);
+    assert.strictEqual((await tc('POST', { action: 'confirm', v: r.j.trade.v }, T1)).code, 409, 'both must offer first');
+    r = await tc('POST', { action: 'offer', fid: 3, face: [2, 1, 1] }, T2);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    const v = r.j.trade.v;
+    assert.strictEqual((await tc('POST', { action: 'confirm', v: v - 1 }, T1)).code, 409, 'stale version');
+    r = await tc('POST', { action: 'confirm', v }, T1);
+    assert.ok(r.j.trade.myConf && !r.j.trade.theirConf);
+    assert.strictEqual((await tc('POST', { action: 'confirm', v }, T2)).code, 200);
+    r = await tc('GET', undefined, T1);
+    assert.strictEqual(r.j.trade.s, 'done');
+    const b1 = r.j.box.filter((d) => d.why === 'trade'), b2 = (await tc('GET', undefined, T2)).j.box.filter((d) => d.why === 'trade');
+    assert.strictEqual(b1.length, 1); assert.deepStrictEqual(b1[0].f.slice(0, 3), [2, 1, 1]); assert.strictEqual(b1[0].from, 'trade_b');
+    assert.strictEqual(b2.length, 1); assert.deepStrictEqual(b2[0].f.slice(0, 3), [2, 0, 1]);
+    r = await tc('POST', { action: 'claim', ids: [b1[0].d] }, T1);
+    assert.strictEqual(r.j.box.length, 0, 'claimed deliveries are removed');
+    await tc('POST', { action: 'claim', ids: [b2[0].d] }, T2);
+    await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
+    assert.strictEqual((await tc('GET', undefined, T1)).j.trade, null);
+  });
+  await t('trade: an offered face cannot stay in the synced saves of the player who offered it (no duplicating)', async () => {
+    let r = await lsub('trade_a', T1, T1O, { faces: T1F });
+    assert.strictEqual(r.code, 422, 'the traded face is still in this save: ' + JSON.stringify(r.j));
+    assert.match(r.j.error, /still in your save/);
+    r = await lsub('trade_a', T1, { top: [[1, 0, 1], [0, 0, 1]] }, { faces: T1F.slice(1) });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+  });
+  await t('trade: cancelling returns the offered face to its owner', async () => {
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'trade_b' }, T1)).code, 200);
+    assert.strictEqual((await tc('POST', { action: 'accept' }, T2)).code, 200);
+    const r = await tc('POST', { action: 'offer', fid: 2, face: [1, 0, 1] }, T1);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual((await tc('POST', { action: 'cancel' }, T2)).code, 200);
+    const s = await tc('GET', undefined, T1);
+    assert.strictEqual(s.j.trade.s, 'cancelled');
+    const ret = s.j.box.filter((d) => d.why === 'return');
+    assert.strictEqual(ret.length, 1); assert.deepStrictEqual(ret[0].f.slice(0, 3), [1, 0, 1]);
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 2, face: [1, 0, 1] }, T1)).code, 409, 'a finished trade takes no more offers');
+    await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 2, face: [1, 0, 1] }, T1)).code, 404, 'after acknowledging, the player is not in a trade');
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();

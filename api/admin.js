@@ -9,7 +9,7 @@ const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revok
 // wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed, except the calling owner's own account and sessions.
 // It cannot be undone, so it needs an owner code and the exact confirmation phrase. Rate-limit counters (rl:*) and admin bindings (ac:*, adm:*) are left alone.
 const WIPE_PHRASE = 'DELETE ALL ACCOUNTS';
-const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:', 'dev:'];
+const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:', 'dev:', 'tr:', 'trc:', 'trbox:', 'trl:', 'trp:', 'trx:'];
 const BOARDS = ['lb:life', 'lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
 
 // Deletes in batches and stops after ~7 s (the function limit is 10 s); the response says done:false until nothing is left, so just call it again.
