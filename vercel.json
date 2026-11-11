@@ -1,9 +1,9 @@
 {
   "framework": null,
-  "buildCommand": null,
+  "buildCommand": "node scripts/build-id.js",
   "outputDirectory": "public",
   "functions": {
-    "api/*.js": { "maxDuration": 10 }
+    "api/*.js": { "maxDuration": 10, "includeFiles": "lib/buildid.json" }
   },
   "headers": [
     {
@@ -15,6 +15,18 @@
     },
     {
       "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    },
+    {
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/index.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/version.json",
       "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
   ]

@@ -65,6 +65,16 @@ There is no shared admin password. Admins are ordinary player accounts that rede
 * **Seasons.** `SEASON` (in `lib/util.js` and `public/index.html`) is stamped into every save and every sync. A browser save from another season is discarded on load (the player starts fresh) and the server answers 409 to an old cached copy of the game, so exploited saves and old tabs cannot sync back after a reset. Bump `SEASON` whenever you reset progress again.
 * **Resetting everyone:** deploy, then use an owner admin's **Wipe all accounts** button in the dev panel (see Admin codes), or call it directly: `curl -X POST https://YOUR-SITE/api/admin -H 'Authorization: Bearer OWNER_TOKEN' -d '{"action":"wipeall","confirm":"DELETE ALL ACCOUNTS"}'`. It keeps the owner's own account and deletes every other account, save, session and board.
 
+## Update notices
+
+Open tabs find out when a new version is live, so players do not keep playing an old copy.
+
+* **Build id.** Every deploy gets a 12-character id: a hash of `public/index.html` and every file in `api/` and `lib/` (`lib/build.js`). On Vercel the build command (`node scripts/build-id.js`, set in `vercel.json`) stamps it into the page (replacing the `__BUILD_ID__` placeholder, which is why the source page keeps the placeholder), into `public/version.json` and into `lib/buildid.json` (bundled with the API functions). Outside Vercel the script does nothing unless you pass `--force`, so it cannot overwrite the source page by accident. `dev.js` computes the id on the fly and serves `/version.json` and the stamped page itself.
+* **Soft update.** The page checks `version.json` every minute, when the tab regains focus and 5 seconds after loading, and also reads the `build` returned by every successful `/api/submit`. If it differs from the page's own build, a banner offers **Update now** or **Later** (Later hides it for 15 minutes). Update now saves the game locally, pushes one last sync, then reloads.
+* **Required update.** If `version.json` reports another `SEASON`, or the server answers 409 (`required: true`), a full-screen box asks for a reload and the old page stops syncing. The local save is kept, and the new page loads it as usual unless the season changed.
+* **Caching.** `/`, `/index.html` and `/version.json` are served with `no-cache` / `no-store` headers (`vercel.json`), so a reload always fetches the new page.
+* An unstamped page (opened straight from the file, or a build that could not stamp) never claims to be out of date.
+
 ## Local development
 
 ```

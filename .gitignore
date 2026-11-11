@@ -1,0 +1,5 @@
+.vercel
+node_modules
+# written by scripts/build-id.js on Vercel's build machine
+lib/buildid.json
+public/version.json

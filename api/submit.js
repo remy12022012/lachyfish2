@@ -1,6 +1,7 @@
 'use strict';
 const { SEASON, MIN_ASC_MS, send, readBody, handler, authUser, allow, parseJSON, validateStats, validateSave } = require('../lib/util');
 const { inspect, logFlag, addStrike } = require('../lib/cheat');
+const { currentBuild } = require('../lib/build');
 
 const MAX_ASC_JUMP = 2; // ascensions gained between two syncs (each costs cash and wipes the run, so more than this in one sync is tampering)
 const FEED_MIN_RAR = 5; // only Mythic and above make the activity feed
@@ -12,7 +13,7 @@ module.exports = handler(['POST'], async (req, res, store) => {
   if (!(await allow(store, 'submit:' + lname, 1, 5))) return send(res, 429, { error: 'Syncing too fast. Try again in a few seconds.' });
 
   const b = await readBody(req);
-  if (b && typeof b === 'object' && b.season !== SEASON) return send(res, 409, { error: 'The game was updated. Reload the page to keep playing online.' });
+  if (b && typeof b === 'object' && b.season !== SEASON) return send(res, 409, { error: 'The game was updated. Reload the page to keep playing online.', required: true, build: currentBuild() });
   const s = validateStats(b);
   if (!s) return send(res, 422, { error: 'Invalid stats.' });
 
@@ -102,5 +103,5 @@ module.exports = handler(['POST'], async (req, res, store) => {
     } catch (e) { console.error('feed', e); }
   }
 
-  send(res, 200, { ok: true, rank: rk === null ? 0 : rk + 1, total: total || 0 });
+  send(res, 200, { ok: true, rank: rk === null ? 0 : rk + 1, total: total || 0, build: currentBuild() });
 });

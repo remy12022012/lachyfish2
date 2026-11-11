@@ -111,6 +111,39 @@ async function t(name, fn) {
     assert.strictEqual((await call('POST', '/api/submit', b, A)).code, 409);
     unlock('alice'); assert.strictEqual((await call('POST', '/api/submit', stats({ season: 1 }), A)).code, 409);
   });
+  await t('the 409 for an old season tells the client the update is required and names the live build', async () => {
+    unlock('alice'); const r = await call('POST', '/api/submit', stats({ season: 1 }), A);
+    assert.strictEqual(r.code, 409);
+    assert.strictEqual(r.j.required, true);
+    assert.match(r.j.build, /^[0-9a-f]{12}$/);
+  });
+  await t('version.json reports the live build and season and is never cached', async () => {
+    const r = await fetch(base + '/version.json');
+    assert.strictEqual(r.status, 200);
+    assert.match(r.headers.get('cache-control') || '', /no-store/);
+    const j = await r.json();
+    assert.match(j.build, /^[0-9a-f]{12}$/);
+    assert.strictEqual(j.season, require('../lib/util').SEASON);
+    assert.strictEqual(j.build, require('../lib/build').currentBuild());
+  });
+  await t('the page is served with the live build id stamped in place of the placeholder', async () => {
+    const html = await (await fetch(base + '/')).text();
+    assert.ok(!html.includes('__BUILD_ID__'), 'placeholder was replaced');
+    assert.ok(html.includes("var BUILD='" + require('../lib/build').currentBuild() + "'"), 'page carries the live build id');
+  });
+  await t('build id is stable for the same sources, and the stamp script never rewrites the source page outside Vercel', async () => {
+    const { computeId } = require('../lib/build');
+    assert.strictEqual(computeId(), computeId());
+    assert.match(computeId(), /^[0-9a-f]{12}$/);
+    const { execFileSync } = require('child_process'), fs = require('fs'), path = require('path');
+    const idx = path.join(__dirname, '..', 'public', 'index.html');
+    const before = fs.readFileSync(idx, 'utf8');
+    assert.ok(before.includes('__BUILD_ID__'), 'the source page keeps its placeholder');
+    const env = Object.assign({}, process.env); delete env.VERCEL; delete env.BUILD_ID;
+    const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'build-id.js')], { env }).toString();
+    assert.match(out, /skipping/);
+    assert.strictEqual(fs.readFileSync(idx, 'utf8'), before, 'source page untouched');
+  });
   await t('cloud saves with a wrong season, tampered ascensions or impossible faces are not stored', async () => {
     const good = { S: 2, G: { asc: 0, coins: 1 }, faces: [[1, 2, 0, 1, 0, 0, 0]] };
     const bads = [{ ...good, S: 1 }, { ...good, G: { asc: 5 } }, { ...good, faces: [[1, 16, 0, 1, 0, 0, 0]] }, { ...good, G: { asc: 0, book: { '16_0': 1 } } }, { ...good, faces: [[1, 2, 9, 1, 0, 0, 0]] }];
@@ -487,6 +520,13 @@ async function t(name, fn) {
     const Y = await signupAs('guess_2', 'guess-pw-2', 57);
     const ok = await adm({ action: 'redeem', code: codes.spare }, Y, 11);
     assert.strictEqual(ok.code, 200, 'another account is not locked out: ' + JSON.stringify(ok.j));
+  });
+
+  await t('a successful sync returns the live build id so open tabs can notice a new version', async () => {
+    const X = await signupAs('build_1', 'build-pw-1', 71);
+    const r = await call('POST', '/api/submit', mk(), X);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual(r.j.build, require('../lib/build').currentBuild());
   });
 
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');

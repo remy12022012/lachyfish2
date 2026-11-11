@@ -232,6 +232,16 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 .devbadge{font-size:11px;border-width:3px}
 .perf2 .btn,.perf2 .mini,.perf2 .tab{transition:none}
 @media (prefers-reduced-motion:reduce){.btn,.mini,.tab{transition:none}}
+#upd{position:absolute;left:50%;bottom:10px;transform:translate(-50%,24px);opacity:0;pointer-events:none;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;max-width:calc(100% - 16px);padding:6px 10px 6px 14px;border-radius:18px;background:linear-gradient(#5a2bb8,#2a0f70);border:3px solid #ffe36b;box-shadow:0 4px 0 var(--ink);z-index:8;font-size:14px;transition:opacity .25s,transform .25s}
+#upd.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#upd span{font-family:var(--fd);letter-spacing:.6px}
+#upd .btn{padding:3px 12px;font-size:14px}
+#updov{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,3,40,.9)}
+#updov.show{display:flex}
+#updov .uc{width:min(380px,100%);padding:14px 16px 16px;border-radius:20px;text-align:center;background:linear-gradient(#5a2bb8,#2a0f70);border:4px solid #ffe36b;box-shadow:0 0 22px rgba(255,227,107,.55),0 5px 0 var(--ink)}
+#updov .ut{font-family:var(--fd);font-size:24px;letter-spacing:.8px;margin-bottom:6px}
+#updov p{margin:0 0 12px;font-size:14px;font-weight:500}
+@media (max-height:480px){#updov .uc{padding:8px 12px 10px}#updov .ut{font-size:20px;margin-bottom:3px}#updov p{margin-bottom:8px;font-size:13px}}
 </style>
 </head>
 <body>
@@ -242,6 +252,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 <div id='hint'>&#128070; Click the water to catch faces!</div>
 <div id='banner'></div>
 <div id='toast'></div>
+<div id='upd' role='status'></div>
 <div id='sel'></div>
 <div id='tut'></div>
 </div>
@@ -258,6 +269,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 </div>
 <div id='body'></div>
 </div>
+<div id='updov' role='alertdialog' aria-modal='true'><div class='uc'><div class='ut'>&#127881; Update required</div><p id='updmsg'></p><button class='btn gold' id='updgo'>Reload now</button></div></div>
 </div>
 <script>
 (function(){
@@ -465,6 +477,7 @@ function asGain(){return (G.asc|0)>=MAX_ASC?0:(G.coins>=ascCost()?1:0);}
 function crewList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].crew)l.push(faces[i]);return l;}
 function crewCasts(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].crew)s+=crewFm(faces[i]);return s;}
 // Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions (see ASC_REQ): below a rarity's ascension requirement it cannot be caught or fused at all, and each ascension past it multiplies the odds.
+var BUILD='__BUILD_ID__',BUILD_OK=BUILD.indexOf('__')!==0; // the build step stamps the real id into the page; an unstamped page never claims to be outdated
 var SEASON=2,MAX_ASC=20,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
 // Minimum ascensions needed before each rarity (by index) can be caught or fused. Keep in sync with ASC_REQ in lib/util.js: the server rejects stats and saves that break it.
 var ASC_REQ=[0,0,0,0,0,0,0,3,5,7,9,11,13,17,19,20,20];
@@ -1600,6 +1613,7 @@ function api(path,payload){
 }
 function bestBook(){var br=0,bm=0,k,p;for(k in G.book){p=k.split('_');if(+p[0]>br)br=+p[0];if(+p[1]>bm)bm=+p[1];}return [br,bm];}
 function acctSubmit(manual){
+  if(updReq)return; // an outdated client is not allowed to sync
   if(devTaint||G.dt===1){if(manual){acct.msg='Test mode is on, so syncing is disabled.';if(tab==='top')renderSafe();}return;}
   if(!acct.token||acct.subBusy)return;
   var bb=bestBook(),tf=faces.slice().sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;}).slice(0,6).map(function(f){return [f.rar,f.mut,f.lvl];});
@@ -1607,12 +1621,69 @@ function acctSubmit(manual){
   api('api/submit',{coins:Math.min(1e21,Math.floor(G.coins)),inc:Math.min(1e20,curInc),asc:Math.min(MAX_ASC,G.asc|0),season:SEASON,caught:Math.min(1e9,G.caught),book:Math.min(80,disc),bestRar:bb[0],bestMut:bb[1],top:tf,cps:Math.round(crewList().reduce(function(s,f){return s+crewFm(f);},0)*100)/100,save:saveBlob()}).then(function(r){
     acct.subBusy=false;
     if(r.code===401){signOut('Your session expired. Please sign in again.');return;}
-    if(r.ok){acct.rank=r.j.rank||acct.rank;acct.total=r.j.total||acct.total;acct.offline=false;if(manual)acct.msg='Synced!';}
-    else if(r.code===409)acct.msg=r.j.error||'The game was updated. Reload the page.';else if(r.code===422)acct.msg=r.j.error||'Your latest numbers were not accepted by the server.';
+    if(r.ok){acct.rank=r.j.rank||acct.rank;acct.total=r.j.total||acct.total;acct.offline=false;if(manual)acct.msg='Synced!';updSoft(r.j.build);}
+    else if(r.code===409){acct.msg=r.j.error||'The game was updated. Reload the page.';updRequire(r.j.build);}else if(r.code===422)acct.msg=r.j.error||'Your latest numbers were not accepted by the server.';
     else if(manual)acct.msg=r.j.error||'Could not sync.';
     if(tab==='top')renderSafe();
   }).catch(function(){acct.subBusy=false;if(manual){acct.msg='Cannot reach the server.';if(tab==='top')renderSafe();}});
 }
+// ---------- UPDATES ----------
+// The page knows which build it came from (BUILD). It polls version.json and reads the build id the server returns with every sync;
+// when they differ a newer version is live. A different season (or a 409 from the server) makes the update mandatory.
+var updEl=$('upd'),updOv=$('updov'),updReq=false,updNew='',updSnooze=0,updBusy=false,updGo=false;
+function updShow(){
+  if(updReq||!updNew||Date.now()<updSnooze)return;
+  updEl.innerHTML="<span>&#127881; A new version is ready!</span><button class='btn gold' data-upd='go'>Update now</button><button class='btn' data-upd='later'>Later</button>";
+  updEl.classList.add('show');
+}
+function updSoft(b){if(typeof b!=='string'||!b||!BUILD_OK||b===BUILD||updReq)return;updNew=b;updShow();}
+function updRequire(b){
+  if(updReq)return;
+  updReq=true;if(typeof b==='string'&&b)updNew=b;
+  updEl.classList.remove('show');
+  $('updmsg').textContent='A new version of Lachy Fish is out, and this older one can no longer sync online. Reload to get it.';
+  updOv.classList.add('show');
+  try{var g=$('updgo');if(g)g.focus();}catch(_){}
+}
+// Save here, push one last sync (unless the server already refuses this version), then reload to fetch the new page.
+function updNow(){
+  if(updGo)return;updGo=true;
+  var btns=document.querySelectorAll('#upd .btn,#updgo'),i,fin=false,n=0;
+  for(i=0;i<btns.length;i++){btns[i].disabled=true;}
+  var gb=$('updgo');if(gb)gb.textContent='Updating...';
+  try{saveGame();}catch(_){}
+  if(acct.token&&!updReq)acctSubmit();
+  function go(){if(fin)return;fin=true;try{location.reload();}catch(_){location.href=location.pathname;}}
+  (function w(){if(!acct.subBusy||++n>40)return go();setTimeout(w,100);})();
+  setTimeout(go,6000);
+}
+function updCheck(){
+  if(updBusy||updReq)return;
+  updBusy=true;
+  fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+    updBusy=false;
+    if(!j||typeof j.build!=='string'||!j.build)return;
+    if(typeof j.season==='number'&&j.season!==SEASON){updRequire(j.build);return;}
+    if(!BUILD_OK)return;
+    if(j.build!==BUILD)updSoft(j.build);
+    else{updNew='';updEl.classList.remove('show');}
+  }).catch(function(){updBusy=false;});
+}
+updEl.addEventListener('click',function(e){
+  var a=e.target&&e.target.getAttribute?e.target.getAttribute('data-upd'):null;
+  if(a==='go')updNow();
+  else if(a==='later'){updSnooze=Date.now()+15*60000;updEl.classList.remove('show');}
+});
+$('updgo').addEventListener('click',updNow);
+['pointerdown','mousedown','touchstart','keydown'].forEach(function(ev){
+  updEl.addEventListener(ev,function(e){e.stopPropagation();});
+  updOv.addEventListener(ev,function(e){e.stopPropagation();});
+});
+setInterval(updCheck,60000);
+setTimeout(updCheck,5000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)updCheck();});
+window.addEventListener('focus',updCheck);
+
 function doAuth(kind){
   var ue=$('lu'),pe=$('lp');if(acct.busy||!ue||!pe)return;
   var u=ue.value.trim(),p=pe.value;acct.u=u;

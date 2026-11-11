@@ -4,6 +4,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { PLACEHOLDER, currentBuild } = require('./lib/build');
+const { SEASON } = require('./lib/util');
 
 const PORT = +process.env.PORT || 3000;
 const PUB = path.join(__dirname, 'public');
@@ -24,10 +26,21 @@ const server = http.createServer(async (req, res) => {
     }
     return require(file)(req, res);
   }
+  // On Vercel the build step writes public/version.json; locally it is computed from the source files.
+  if (url.pathname === '/version.json') {
+    res.setHeader('Content-Type', TYPES['.json']);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end(JSON.stringify({ build: currentBuild() || 'dev', season: SEASON, t: Date.now() }));
+  }
   let p = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
   const f = path.normalize(path.join(PUB, p));
   if (!f.startsWith(PUB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.statusCode = 404; return res.end('Not found'); }
   res.setHeader('Content-Type', TYPES[path.extname(f)] || 'application/octet-stream');
+  if (f === path.join(PUB, 'index.html')) {
+    // Same as the Vercel build step: the page carries the id of the build it came from.
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.end(fs.readFileSync(f, 'utf8').split(PLACEHOLDER).join(currentBuild() || 'dev'));
+  }
   fs.createReadStream(f).pipe(res);
 });
 
