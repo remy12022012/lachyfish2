@@ -1,6 +1,6 @@
 'use strict';
 const { NAME_RE, send, handler, authUser, parseJSON, queryOf } = require('../lib/util');
-const { adminOf } = require('../lib/adminCodes');
+const { adminOf, tagOf } = require('../lib/adminCodes');
 
 // life: lifetime earnings across every ascension (the default, so players keep their place after ascending); peak: most money held at once;
 // inc: best income per second; asc: ascensions; book: the best Book count ever reached.
@@ -14,19 +14,19 @@ function pub(p, dev) {
     bookMax: Number.isFinite(p.bookMax) ? p.bookMax : p.book,
     bestEver: p.bestEver, bestMut: p.bestMut, top: p.top, cps: p.cps, created: p.created, t: p.t,
   };
-  if (dev) o.dev = dev; // 'owner' or 'staff': shown as a DEV tag next to the name
+  if (dev) o.dev = dev; // 'owner' or 'dev': shown as a glowing DEV tag next to the name (staff admins get no tag unless an owner gave them one)
   return o;
 }
 
-// Which of these accounts are admins. One batched read of the admin bindings, then the full check (is the code still valid?) only for accounts that have one.
+// Which of these accounts show a DEV tag: owners, and players an owner gave the tag to. One batched read of both bindings, then the full check only for accounts that have one.
 async function devTags(store, lnames) {
   const out = new Map();
   if (!lnames.length) return out;
-  const recs = await store.mget(lnames.map((m) => 'adm:' + m));
+  const [adms, devs] = await Promise.all([store.mget(lnames.map((m) => 'adm:' + m)), store.mget(lnames.map((m) => 'dev:' + m))]);
   await Promise.all(lnames.map(async (m, i) => {
-    if (!recs[i]) return;
-    const a = await adminOf(store, m);
-    if (a) out.set(m, a.tier);
+    if (!adms[i] && !devs[i]) return;
+    const t = await tagOf(store, m);
+    if (t) out.set(m, t);
   }));
   return out;
 }
@@ -39,10 +39,10 @@ module.exports = handler(['GET'], async (req, res, store) => {
   if (u !== null) {
     if (!NAME_RE.test(u)) return send(res, 404, { error: 'Not found.' });
     const lname = u.toLowerCase();
-    const [raw, rk, adm] = await Promise.all([store.get('p:' + lname), store.zrevrank('lb:life', lname), adminOf(store, lname)]);
+    const [raw, rk, tag] = await Promise.all([store.get('p:' + lname), store.zrevrank('lb:life', lname), tagOf(store, lname)]);
     const p = parseJSON(raw);
     if (!p) return send(res, 404, { error: 'Not found.' });
-    return send(res, 200, { profile: pub(p, adm ? adm.tier : null), rank: rk === null ? 0 : rk + 1 });
+    return send(res, 200, { profile: pub(p, tag), rank: rk === null ? 0 : rk + 1 });
   }
 
   // List: /api/leaderboard?n=50&feed=1&view=life

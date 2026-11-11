@@ -523,11 +523,15 @@ async function t(name, fn) {
   await t('client upMax and UP_FULL_ASC match lib/cheat.js upCap', async () => {
     const cheat = require('../lib/cheat');
     const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'index.html'), 'utf8');
-    const fn = /function upMax\(k,a\)\{[^\n]*\}/.exec(html), fa = /UP_FULL_ASC=(\d+)/.exec(html);
-    assert.ok(fn && fa, 'client has upMax and UP_FULL_ASC');
+    const fn = /function upMax\(k,a\)\{[^\n]*\}/.exec(html), fa = /UP_FULL_ASC=(\d+)/.exec(html), uf = /function upFull\(k\)\{[^\n]*\}/.exec(html);
+    assert.ok(fn && fa && uf, 'client has upMax, upFull and UP_FULL_ASC');
     assert.strictEqual(+fa[1], cheat.UP_FULL_ASC);
     const UPS = {}; for (const k of Object.keys(cheat.UP_MAX)) UPS[k] = { max: cheat.UP_MAX[k] };
-    const upMax = new Function('UPS', 'G', 'UP_FULL_ASC', fn[0] + '; return upMax;')(UPS, { asc: 0 }, +fa[1]);
+    const upMax = new Function('UPS', 'G', 'UP_FULL_ASC', 'MAX_ASC', uf[0] + ';' + fn[0] + '; return upMax;')(UPS, { asc: 0 }, +fa[1], 20);
+    // The headline sizes at the maximum ascension: Base 100, Crew 20, Farm 30.
+    assert.strictEqual(cheat.baseCap(cheat.upCap('cap', 20)), 100);
+    assert.strictEqual(1 + cheat.upCap('crew', 20), 20);
+    assert.strictEqual(1 + cheat.upCap('farm', 20), 30);
     for (const k of Object.keys(UPS)) for (let a = 0; a <= 20; a++) assert.strictEqual(upMax(k, a), cheat.upCap(k, a), k + ' at ascension ' + a);
   });
   await t('lib/cheat.js economy tables match the client (RAR, MUT, UPS, ASC_REQ)', async () => {
@@ -601,16 +605,29 @@ async function t(name, fn) {
     assert.strictEqual(r.code, 422, JSON.stringify(r.j));
     assert.strictEqual((await call('GET', '/api/leaderboard?u=life_c')).code, 404, 'nothing was stored');
   });
-  await t('DEV tags: staff and owner accounts are tagged on rows and profiles, players are not', async () => {
+  await t('DEV tags: owners are tagged, staff and players are not until an owner gives them the tag (owner only)', async () => {
     const st = (await call('POST', '/api/login', { username: 'guess_2', password: 'guess-pw-2' }, undefined, ipOf(57)));
     assert.strictEqual(st.code, 200, JSON.stringify(st.j));
     assert.strictEqual((await lsub('guess_2', st.j.token, { coins: 3000 })).code, 200);
     const r = await lsub('boss_1', O, { coins: 4000 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
     const rows = (await call('GET', '/api/leaderboard?n=100')).j.rows, by = (n) => rows.find((x) => x.name === n);
-    assert.strictEqual(by('boss_1').dev, 'owner'); assert.strictEqual(by('guess_2').dev, 'staff');
+    assert.strictEqual(by('boss_1').dev, 'owner'); assert.ok(!by('guess_2').dev, 'staff admins have no tag by default');
     assert.ok(!by('life_a').dev && !by('life_b').dev);
     assert.strictEqual((await call('GET', '/api/leaderboard?u=boss_1')).j.profile.dev, 'owner');
-    assert.strictEqual((await call('GET', '/api/leaderboard?u=guess_2')).j.profile.dev, 'staff');
+    assert.ok(!(await call('GET', '/api/leaderboard?u=guess_2')).j.profile.dev);
+    const tagged = async (n) => (await call('GET', '/api/leaderboard?n=100')).j.rows.find((x) => x.name === n).dev;
+    assert.strictEqual((await adm({ action: 'devtag', username: 'life_a' }, st.j.token, 7)).code, 403, 'staff cannot give tags');
+    assert.strictEqual((await adm({ action: 'devtag', username: 'guess_2' }, st.j.token, 7)).code, 403, 'not even to themselves');
+    assert.strictEqual((await adm({ action: 'devtag', username: 'nobody_x' }, O, 7)).code, 404);
+    assert.strictEqual((await adm({ action: 'devtag', username: 'life_a' }, O, 7)).code, 200);
+    assert.strictEqual(await tagged('life_a'), 'dev');
+    assert.strictEqual((await call('GET', '/api/leaderboard?u=life_a')).j.profile.dev, 'dev');
+    assert.strictEqual((await adm({ action: 'devtag', username: 'guess_2' }, O, 7)).code, 200, 'an owner may tag staff');
+    assert.strictEqual(await tagged('guess_2'), 'dev');
+    assert.strictEqual((await adm({ action: 'undevtag', username: 'life_a' }, st.j.token, 7)).code, 403, 'staff cannot remove tags');
+    assert.strictEqual((await adm({ action: 'undevtag', username: 'life_a' }, O, 7)).code, 200);
+    assert.strictEqual((await adm({ action: 'undevtag', username: 'guess_2' }, O, 7)).code, 200);
+    assert.ok(!(await tagged('life_a')) && !(await tagged('guess_2')));
   });
   await t('owner switch: an owner may sync a fully maxed account, anyone else is refused', async () => {
     const maxed = { asc: 20, bestRar: 16, book: 80, coins: 1e12, life: 1e13, inc: 1e9, top: [[16, 4, 2], [15, 0, 1]] };

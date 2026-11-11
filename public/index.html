@@ -161,7 +161,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 .vt{flex:1;font:inherit;font-size:11px;font-weight:900;padding:5px 2px;border-radius:9px;border:2px solid #1a0a4a;background:#3a1a8a;color:#fff;cursor:pointer}
 .vt:hover{background:#5a2bb8}
 .vt.on{background:#ffe36b;color:#1a0a4a}
-.devtag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.8px;vertical-align:middle;color:#0a2a4a;background:linear-gradient(#bfe6ff,#4db4ff);border:1.5px solid #1a0a4a;font-family:var(--fd)}.devtag.own{color:#4a2c00;background:linear-gradient(#ffe9a0,#ffb52e)}
+.devtag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.8px;vertical-align:middle;color:#0a2a4a;background:linear-gradient(#bfe6ff,#4db4ff);border:1.5px solid #1a0a4a;font-family:var(--fd)}.devtag.own{color:#4a2c00;background:linear-gradient(#ffe9a0,#ffb52e)}.glow{color:#fff!important;text-shadow:0 0 5px #7dd3ff,0 0 11px #4db4ff,0 0 20px #4db4ff;animation:devglow 1.8s ease-in-out infinite alternate}.glow.own{text-shadow:0 0 5px #ffe9a0,0 0 11px #ffb52e,0 0 20px #ffb52e;animation-name:devglowo}.devtag{box-shadow:0 0 8px #4db4ff}.devtag.own{box-shadow:0 0 8px #ffb52e}@keyframes devglow{from{text-shadow:0 0 3px #7dd3ff,0 0 7px #4db4ff}to{text-shadow:0 0 7px #bfe6ff,0 0 16px #4db4ff,0 0 28px #4db4ff}}@keyframes devglowo{from{text-shadow:0 0 3px #ffe9a0,0 0 7px #ffb52e}to{text-shadow:0 0 7px #fff3c4,0 0 16px #ffb52e,0 0 28px #ffb52e}}@media (prefers-reduced-motion:reduce){.glow{animation:none}}
 .lbname{font:inherit;font-weight:900;font-size:13px;background:none;border:0;padding:0;margin:0;color:#fff;text-align:left;cursor:pointer;text-decoration:underline dotted}
 .lbname:hover{color:#ffe36b}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4cff8a;margin-left:6px;box-shadow:0 0 6px #4cff8a;vertical-align:middle}
@@ -361,10 +361,10 @@ luck:{n:'Lucky Lure',i:'&#127808;',col:'#5cf27a',d:'Rarer faces bite more often.
 mut:{n:'Mutation Chance',i:'&#10024;',col:'#ff5ac8',d:'More mutations and better ones.',b:400,g:2.3,max:30,eff:function(){return 'Mutation chance: '+(mutChance()*100).toFixed(1)+'%';}},
 val:{n:'Golden Scales',i:'&#128176;',col:'#ffb300',d:'+12% cash per second per level.',b:300,g:2.2,max:50,eff:function(){return 'Cash x'+(1+0.12*G.up.val).toFixed(2);}},
 multi:{n:'Double Hook',i:'&#9996;',col:'#4aa8ff',d:'Chance to land two faces at once.',b:700,g:2.4,max:25,eff:function(){return 'Double catch: '+Math.min(100,4*G.up.multi)+'%';}},
-crew:{n:'Crew Slots',i:'&#128101;',col:'#c66bff',d:'+1 face fisher on the dock.',b:900,g:3.2,max:11,eff:function(){return 'Crew slots: '+slots();}},
-cap:{n:'Bigger Base',i:'&#127754;',col:'#5ef0ff',d:'+10 faces fit in the base.',b:500,g:2.5,max:10,eff:function(){return 'Base capacity: '+capN();}},
+crew:{n:'Crew Slots',i:'&#128101;',col:'#c66bff',d:'+1 face fisher on the dock.',b:900,g:2.6,max:19,eff:function(){return 'Crew slots: '+slots();}},
+cap:{n:'Bigger Base',i:'&#127754;',col:'#5ef0ff',d:'+7 faces fit in the base (100 at the top level).',b:500,g:2.5,max:10,eff:function(){return 'Base capacity: '+capN();}},
 guard:{n:'Dock Guard',i:'&#128737;',col:'#ff8a8a',d:'Pirates steal less of your coins.',b:800,g:2.3,max:10,eff:function(){return 'Pirate loss: '+(Math.max(3,15-1.2*G.up.guard)).toFixed(1)+'% of coins';}},
-farm:{n:'Farm Plots',i:'&#127806;',col:'#8bdc4a',d:'+1 face farmer on the Farm.',b:600,g:3,max:11,eff:function(){return 'Farm slots: '+farmSlots();}},
+farm:{n:'Farm Plots',i:'&#127806;',col:'#8bdc4a',d:'+1 face farmer on the Farm.',b:600,g:2.2,max:29,eff:function(){return 'Farm slots: '+farmSlots();}},
 soil:{n:'Rich Soil',i:'&#127793;',col:'#6fcf5a',d:'+20% Food per level.',b:350,g:2.3,max:40,eff:function(){return 'Food x'+soilMult().toFixed(2);}},
 feed:{n:'Cheap Feed',i:'&#129364;',col:'#ffb86b',d:'-3% Food cost of level-ups per level.',b:500,g:2.4,max:25,eff:function(){return 'Level-up cost: '+Math.round(feedMult()*100)+'%';}}};
 var UK=['auto','quick','luck','mut','val','multi','crew','cap','guard'];
@@ -474,7 +474,7 @@ var view='fish',baseScroll=0,baseMax=0,bdrag=null,selId=0,selHtml='',recent=[],s
 // ---------- ECONOMY ----------
 function faceInc(f){return RAR[f.rar].inc*MUT[f.mut].m*0.7*(1+0.35*(f.lvl-1));}
 function gMult(){return (1+0.12*G.up.val)*(1+0.1*G.gems)*(1+0.03*disc)*(1+0.05*achN())*Math.min(3,(G.bf.cash>0?2:1)*(wx&&wx.cash?wx.cash:1)*tideNow().cash);}
-function capN(){return 30+10*G.up.cap;}
+function capN(){return 30+7*G.up.cap;}
 function slots(){return 1+G.up.crew;}
 function crewFm(f){return RAR[f.rar].fm*(1+0.12*(f.lvl-1))/5;}
 function autoRate(){return 0.22*G.up.auto;}
@@ -517,7 +517,9 @@ function farmFm(f){return RAR[f.rar].fm*(1+0.12*(f.lvl-1))/10*soilMult();}
 function farmList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].farm)l.push(faces[i]);return l;}
 function farmRate(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].farm)s+=farmFm(faces[i]);return s;}
 // Every upgrade has a final max (UPS[k].max). Its cap starts at 40% of that and rises with each ascension until it reaches the final max at ascension UP_FULL_ASC. Keep in sync with upCap in lib/cheat.js.
-function upMax(k,a){var u=UPS[k],s=Math.max(1,Math.ceil(u.max*0.4)),n=Math.max(0,Math.min(UP_FULL_ASC,(a===undefined?G.asc:a)|0));return Math.min(u.max,s+Math.ceil((u.max-s)*n/UP_FULL_ASC));}
+// Crew and Farm slots only reach their final size (Crew 20, Farm 30) at the maximum ascension. Keep in sync with upFull in lib/cheat.js.
+function upFull(k){return k==='crew'||k==='farm'?MAX_ASC:UP_FULL_ASC;}
+function upMax(k,a){var u=UPS[k],s=Math.max(1,Math.ceil(u.max*0.4)),f=upFull(k),n=Math.max(0,Math.min(f,(a===undefined?G.asc:a)|0));return Math.min(u.max,s+Math.ceil((u.max-s)*n/f));}
 // Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions (see ASC_REQ): below a rarity's ascension requirement it cannot be caught at all, and each ascension past it multiplies the odds.
 var BUILD='__BUILD_ID__',BUILD_OK=BUILD.indexOf('__')!==0; // the build step stamps the real id into the page; an unstamped page never claims to be outdated
 var SEASON=3,MAX_ASC=20,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
@@ -1830,7 +1832,8 @@ function faceChips(top){
 }
 var MED=['&#129351;','&#129352;','&#129353;'];
 var LBV=[['life','Total'],['peak','Peak'],['inc','Income'],['asc','Ascends'],['book','Book']];
-function devTag(t){return t?`<span class='devtag${t==='owner'?' own':''}' title='${t==='owner'?'Owner':'Staff'}'>DEV</span>`:'';}
+function devTag(t){return t?`<span class='devtag${t==='owner'?' own':''}' title='${t==='owner'?'Owner':'Developer'}'>DEV</span>`:'';}
+function glowCls(t){return t?' glow'+(t==='owner'?' own':''):'';}
 var LBNOTE={life:'Ranked by all the money you have ever earned, across every ascension. You keep your place when you ascend.',peak:'Ranked by the most money you have held at once.',inc:'Ranked by the best income per second you have reached, across ascensions.',asc:'Ranked by ascensions, then by Book entries.',book:'Ranked by the most Book entries you have ever reached, then by ascensions.'};
 function lbMetric(r){var v=acct.view;return v==='inc'?'$'+fmt(r.inc)+'/s':v==='asc'?(r.asc|0)+' asc':v==='book'?((r.bookMax!=null?r.bookMax:r.book)|0)+'/'+NR*5+' book':v==='peak'?'$'+fmt(r.peak)+' peak':'$'+fmt(r.life!=null?r.life:r.peak)+' total';}
 function lbNum(r){var v=acct.view;return v==='inc'?(+r.inc||0):v==='asc'?(r.asc|0):v==='book'?((r.bookMax!=null?r.bookMax:r.book)|0):v==='peak'?(+r.peak||0):(+(r.life!=null?r.life:r.peak)||0);}
@@ -1858,7 +1861,7 @@ function openProf(u){
 }
 function profHtml(){
   var p=acct.prof,x,h;if(!p)return '';
-  h=`<div class='prof'><div class='ph'><b>${esc(p.name)}${p.p?devTag(p.p.dev):''}</b><button class='btn red' data-a='profclose'>&#10005;</button></div>`;
+  h=`<div class='prof'><div class='ph'><b class='${glowCls(p.p&&p.p.dev).trim()}'>${esc(p.name)}</b>${p.p?devTag(p.p.dev):''}<button class='btn red' data-a='profclose'>&#10005;</button></div>`;
   if(p.loading)h+=`<div class='note'>Loading...</div>`;
   else if(p.err)h+=`<div class='note'>${esc(p.err)}</div>`;
   else{
@@ -1902,7 +1905,7 @@ function topHtml(){
   else if(!acct.rows.length)h+=`<div class='note'>No one is ranked yet. Be the first!</div>`;
   else for(i=0;i<acct.rows.length;i++){
     r=acct.rows[i];mine=acct.token&&r.name===acct.name;
-    h+=`<div class='lbrow${mine?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><button class='lbname' data-a='profile' data-u='${esc(r.name)}'>${esc(r.name)}</button>${devTag(r.dev)}${ago(r.t)==='now'?`<span class='dot' title='Online now'></span>`:''}</div><small>${lbMetric(r)} &bull; best ${RAR[r.bestEver|0]?RAR[r.bestEver|0].n:'?'} &bull; ${ago(r.t)}</small><div class='lbf'>${faceChips(r.top)}</div></div></div>`;
+    h+=`<div class='lbrow${mine?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><button class='lbname${glowCls(r.dev)}' data-a='profile' data-u='${esc(r.name)}'>${esc(r.name)}</button>${devTag(r.dev)}${ago(r.t)==='now'?`<span class='dot' title='Online now'></span>`:''}</div><small>${lbMetric(r)} &bull; best ${RAR[r.bestEver|0]?RAR[r.bestEver|0].n:'?'} &bull; ${ago(r.t)}</small><div class='lbf'>${faceChips(r.top)}</div></div></div>`;
   }
   h+=`<div class='tools'><button class='btn' data-a='lbrefresh'>Refresh</button></div><div class='note'>${LBNOTE[acct.view]}</div>`;
   return h+feedHtml();
@@ -2135,6 +2138,7 @@ function devMenu(){
     +`<div class='sech'>Economy</div><div class='dg'>`+devB('c1m','+$1M')+devB('c1b','+$1B')+devB('c1t','+$1T')+devB('cmax','Max coins')+devB('gems','+100 gems')+devB('ups','Max all upgrades')+`</div>`
     +`<div class='sech'>Events and world</div><div class='dg'>`+devB('wx0','Rainfall')+devB('wx1','Aurora')+devB('wx2','Golden Hour')+devB('chest','Spawn chest')+devB('frenzy','Frenzy 30s')+devB('baits','All baits 10m')+devB('quests','Finish quests')+devB('daily','Reset daily')+devB('ultra','ULTRA show')+`</div>`
     +`<div class='sech'>Save and access</div><div class='dg'>`+devB('restore',devArm==='restore'?'Tap again to confirm':'Restore my real save','red')+(devAdm&&devAdm.tier==='owner'?devB('ownsync',devArm==='ownsync'?'Tap again to confirm':'Owner: end test mode and sync everything','gold'):'')+`</div>`
+    +(devAdm&&devAdm.tier==='owner'?`<div class='sech'>Ascension (owner)</div><div class='note'>Currently ${G.asc|0} of ${MAX_ASC}. This only raises it, saves it and syncs it to your account (owner syncs skip the ascension checks).</div><div class='row'><input class='acf' id='dasc' type='number' min='0' max='${MAX_ASC}' value='${G.asc|0}' inputmode='numeric'>${devB('setasc','Set ascension','green')}${devB('ascup','+1')}</div>`:'')
     +devAdminSection();
 }
 function devRender(){
@@ -2172,7 +2176,7 @@ function devAdminSection(){
   h+=`<div class='note'>${devEsc(acct.name)} is an ${own?'owner':'staff'} admin.</div><div class='row'><input class='acf' id='dau' maxlength='16' placeholder='Player' value='${devEsc(devAU)}' autocomplete='off' autocapitalize='off' spellcheck='false'></div><div class='dg'>`
     +devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')
     +devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+devB('adm_quarantine','Quarantine')+devB('adm_unflag','Unflag')
-    +(own?devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red'):'')+devB('adm_flags','Show flags')+`</div>`;
+    +(own?devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red')+devB('adm_devtag','Give DEV tag','green')+devB('adm_undevtag','Remove DEV tag'):'')+devB('adm_flags','Show flags')+`</div>`;
   if(own)h+=`<div class='sech'>Danger zone</div><div class='note'>Wipe deletes every other account and save. Type ${WIPE_PHRASE} to enable it.</div><div class='row'><input class='acf' id='daw' maxlength='32' placeholder='${WIPE_PHRASE}' value='${devEsc(devAW)}' autocomplete='off' autocapitalize='off' spellcheck='false'></div><div class='dg'>`+devB('adm_wipeall',devArm==='wipeall'?'Tap again: WIPE ALL':'Wipe all accounts','red')+`</div>`;
   if(devFlags){
     fl=devFlags.flags||[];ac=devFlags.accounts||[];
@@ -2217,7 +2221,7 @@ function devWipe(n,tries){
 function devOwnerSync(){
   if(!acct.token){devMsg='Sign in on the Top tab first.';return;}
   var bk=devBackupMem;try{bk=localStorage.getItem(DBK)||bk;if(bk)localStorage.setItem('reelFacesOwnerBackup',bk);}catch(_){}
-  G.asc=MAX_ASC;
+  G.asc=MAX_ASC; // a save holding every rarity is only valid at the top ascension
   DACT.max();
   devClear();
   devAfter();
@@ -2245,6 +2249,17 @@ function devAct(d){
   if(d==='close'){devHide();return;}
   if(d.indexOf('adm_')!==0&&!(devAdm&&devAdm.admin)){devMsg='Admin accounts only.';devRender();return;}
   if(d.indexOf('adm_')===0){devAdmin(d.slice(4));return;}
+  if(d==='setasc'||d==='ascup'){
+    if(!(devAdm&&devAdm.tier==='owner')){devMsg='Owners only.';devRender();return;}
+    var ai=$('dasc'),av=d==='ascup'?(G.asc|0)+1:parseInt(ai?ai.value:'',10);
+    if(!isFinite(av)){devMsg='Enter an ascension from 0 to '+MAX_ASC+'.';devRender();return;}
+    av=Math.max(0,Math.min(MAX_ASC,av));
+    if(av<(G.asc|0)){devMsg='You can only raise your ascension here (you are on '+(G.asc|0)+'). Lower it by restoring a save.';devRender();return;}
+    G.asc=av;saveGame();devAfter();
+    if(devTaint)devMsg='Ascension set to '+av+' of '+MAX_ASC+' on this device. Test mode is on, so it is not synced; use the owner sync button to sync it.';
+    else{devMsg='Ascension set to '+av+' of '+MAX_ASC+'. Syncing it to your account.';acctSubmit(true);}
+    devRender();toast('Ascension '+av);return;
+  }
   if(d==='restore'){
     if(devArm!=='restore'){devArm='restore';devMsg='';devRender();return;}
     devArm='';devMsg='';devRestore();devRender();return;
@@ -2321,6 +2336,13 @@ function loadGame(){
       if(a[4]&&crewList().length<slots())f.crew=true;else{placeInWater(f);if(a[7]&&farmList().length<farmSlots())f.farm=true;}
       faces.push(f);
     });
+    // The Base now tops out at 100 faces (it used to reach 130): a save over today's capacity sells its cheapest extra faces (crew, farm and locked ones last) for their sell value.
+    var exN=faces.length-capN();
+    if(exN>0){
+      var gotC=0;
+      faces.slice().sort(function(a,b){return ((a.crew||a.farm||a.lock)?1:0)-((b.crew||b.farm||b.lock)?1:0)||sellValue(a)-sellValue(b);}).slice(0,exN).forEach(function(f){var sv=sellValue(f);G.coins=Math.min(1e21,G.coins+sv);G.run=Math.min(1e21,G.run+sv);gotC+=sv;faces.splice(faces.indexOf(f),1);});
+      try{setTimeout(function(){toast('Base is now capped at '+capN()+' faces: sold '+exN+' extra for $'+fmt(gotC));},1500);}catch(_){}
+    }
     var mxId=0;faces.forEach(function(f){if(f.id>mxId)mxId=f.id;});if(G.nid<=mxId)G.nid=mxId+1;
     if(G.ts&&faces.length){
       // A save stamped in the future means the device clock was turned back: no offline earnings for that load.

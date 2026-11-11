@@ -3,13 +3,13 @@
 // revoke (owner) and wipeall (owner). There is no shared password: admins are ordinary accounts that redeemed a code from ADMIN_CODES (see lib/adminCodes.js),
 // and every request is authorised by the caller's own session. Attempts are rate limited.
 const { NAME_RE, send, readBody, handler, clientIp, allow, authUser, parseJSON } = require('../lib/util');
-const { configured, redeem, adminOf, revoke } = require('../lib/adminCodes');
+const { configured, redeem, adminOf, revoke, grantDev, removeDev } = require('../lib/adminCodes');
 
-const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke'];
+const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag'];
 // wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed, except the calling owner's own account and sessions.
 // It cannot be undone, so it needs an owner code and the exact confirmation phrase. Rate-limit counters (rl:*) and admin bindings (ac:*, adm:*) are left alone.
 const WIPE_PHRASE = 'DELETE ALL ACCOUNTS';
-const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:'];
+const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:', 'dev:'];
 const BOARDS = ['lb:life', 'lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
 
 // Deletes in batches and stops after ~7 s (the function limit is 10 s); the response says done:false until nothing is left, so just call it again.
@@ -86,6 +86,13 @@ module.exports = handler(['POST'], async (req, res, store) => {
   if (!(await store.get('u:' + lname))) return send(res, 404, { error: 'No such player.' });
 
   const tgt = await adminOf(store, lname);
+  // DEV tags: only an owner may give or take them, for any player (staff included). The decision is made here from the caller's own admin record.
+  if (action === 'devtag' || action === 'undevtag') {
+    if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can give or remove DEV tags.' });
+    if (action === 'devtag') await grantDev(store, lname, JSON.parse(await store.get('u:' + lname)));
+    else await removeDev(store, lname);
+    return send(res, 200, { ok: true, action, username: lname });
+  }
   if (action === 'revoke') {
     if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can revoke an admin.' });
     if (lname === me) return send(res, 422, { error: 'You cannot revoke yourself.' });
