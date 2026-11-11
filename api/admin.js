@@ -1,33 +1,34 @@
 'use strict';
-// Admin actions: kick, ban, unban, reset, flags (recent suspicious syncs), quarantine, unflag, wipeall. Protected by the ADMIN_PASSWORD environment variable (set it in the Vercel
-// project settings); the password is never stored in the page. Every request must send it, and attempts are rate limited.
-const crypto = require('crypto');
-const { NAME_RE, send, readBody, handler, clientIp, allow } = require('../lib/util');
+// Admin actions: redeem (turn the signed-in account into an admin with a one-time code), status, kick, ban, unban, reset, flags, quarantine, unflag,
+// revoke (owner) and wipeall (owner). There is no shared password: admins are ordinary accounts that redeemed a code from ADMIN_CODES (see lib/adminCodes.js),
+// and every request is authorised by the caller's own session. Attempts are rate limited.
+const { NAME_RE, send, readBody, handler, clientIp, allow, authUser, parseJSON } = require('../lib/util');
+const { configured, redeem, adminOf, revoke } = require('../lib/adminCodes');
 
-const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'wipeall'];
-// wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed. It cannot be undone,
-// so it needs the admin password and the exact confirmation phrase. Rate-limit counters (rl:*) are left alone.
+const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke'];
+// wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed, except the calling owner's own account and sessions.
+// It cannot be undone, so it needs an owner code and the exact confirmation phrase. Rate-limit counters (rl:*) and admin bindings (ac:*, adm:*) are left alone.
 const WIPE_PHRASE = 'DELETE ALL ACCOUNTS';
 const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:'];
 const BOARDS = ['lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
-const digest = (s) => crypto.createHash('sha256').update(String(s)).digest();
-
-function passwordOk(given) {
-  const want = process.env.ADMIN_PASSWORD;
-  if (!want || typeof given !== 'string' || !given) return false;
-  return crypto.timingSafeEqual(digest(given), digest(want)); // equal-length digests: constant time
-}
 
 // Deletes in batches and stops after ~7 s (the function limit is 10 s); the response says done:false until nothing is left, so just call it again.
-async function wipeAll(store) {
+async function wipeAll(store, keep) {
   const deadline = Date.now() + 7000;
   let deleted = 0;
+  const doomed = async (prefix, keys) => {
+    if (prefix === 'u:') return keys.filter((k) => k !== 'u:' + keep);
+    if (prefix === 's:') { const vals = await store.mget(keys); return keys.filter((k, i) => !String(vals[i] || '').startsWith(keep + '|')); }
+    return keys;
+  };
   for (const prefix of WIPE_PREFIXES) {
     for (;;) {
       const keys = await store.keys(prefix, 500);
       if (!keys.length) break;
-      await store.delMany(keys);
-      deleted += keys.length;
+      const del = await doomed(prefix, keys);
+      if (!del.length) break; // only the caller's own records are left
+      await store.delMany(del);
+      deleted += del.length;
       if (Date.now() > deadline) return { ok: true, action: 'wipeall', done: false, deleted };
     }
   }
@@ -37,22 +38,38 @@ async function wipeAll(store) {
 }
 
 module.exports = handler(['POST'], async (req, res, store) => {
-  if (!process.env.ADMIN_PASSWORD) return send(res, 503, { error: 'Admin is not configured (ADMIN_PASSWORD is not set).' });
+  if (!configured()) return send(res, 503, { error: 'Admin is not configured (ADMIN_CODES is not set).' });
   const ip = clientIp(req);
   if (!(await allow(store, 'admin-ip:' + ip, 60, 600))) return send(res, 429, { error: 'Too many requests. Wait a few minutes.' });
+  const me = await authUser(req, store);
+  if (!me) return send(res, 401, { error: 'Please sign in first.' });
 
   const b = await readBody(req);
   if (!b || typeof b !== 'object') return send(res, 422, { error: 'Invalid request.' });
-  if (!passwordOk(b.password)) {
-    // Only wrong passwords count toward the tight limit, so a legitimate admin is never locked out by their own use.
-    if (!(await allow(store, 'admin-fail:' + ip, 5, 900))) return send(res, 429, { error: 'Too many wrong passwords. Wait 15 minutes.' });
-    return send(res, 403, { error: 'Wrong admin password.' });
+  const action = b.action;
+
+  if (action === 'redeem') {
+    // Only wrong codes count toward the tight limits (per IP and per account), so a real admin is never locked out by normal use.
+    const [fi, fu] = await Promise.all([store.get('rl:admin-fail:' + ip), store.get('rl:admin-fail-u:' + me)]);
+    if ((+fi || 0) >= 5 || (+fu || 0) >= 5) return send(res, 429, { error: 'Too many wrong codes. Wait 15 minutes.' });
+    const rec = parseJSON(await store.get('u:' + me));
+    if (!rec) return send(res, 401, { error: 'Please sign in again.' });
+    const r = await redeem(store, me, rec, b.code);
+    if (!r.ok) {
+      await Promise.all([allow(store, 'admin-fail:' + ip, 5, 900), allow(store, 'admin-fail-u:' + me, 5, 900)]);
+      return send(res, 403, { error: r.reason === 'used' ? 'That code has already been used.' : 'That code is not valid.' });
+    }
+    return send(res, 200, { ok: true, action, admin: true, tier: r.tier });
   }
 
-  const action = b.action;
+  const adm = await adminOf(store, me);
+  if (action === 'status') return send(res, 200, { ok: true, action, admin: !!adm, tier: adm ? adm.tier : null });
+  if (!adm) return send(res, 403, { error: 'This account is not an admin.' });
+
   if (action === 'wipeall') {
+    if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner code can wipe everything.' });
     if (b.confirm !== WIPE_PHRASE) return send(res, 422, { error: 'To delete every account, also send confirm: "' + WIPE_PHRASE + '".' });
-    return send(res, 200, await wipeAll(store));
+    return send(res, 200, await wipeAll(store, me));
   }
   if (action === 'flags') {
     // The anti-cheat feed (newest first): which accounts sent impossible (hard) or suspicious (soft) numbers, and why.
@@ -62,10 +79,24 @@ module.exports = handler(['POST'], async (req, res, store) => {
     const accounts = await Promise.all(users.map(async (u) => ({ u, quarantined: !!(await store.get('q:' + u)), strikes: +(await store.get('strikes:' + u)) || 0 })));
     return send(res, 200, { ok: true, action, flags, accounts });
   }
+
   const name = typeof b.username === 'string' ? b.username.trim() : '';
   if (!ACTIONS.includes(action) || !NAME_RE.test(name)) return send(res, 422, { error: 'Invalid request.' });
   const lname = name.toLowerCase();
   if (!(await store.get('u:' + lname))) return send(res, 404, { error: 'No such player.' });
+
+  const tgt = await adminOf(store, lname);
+  if (action === 'revoke') {
+    if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can revoke an admin.' });
+    if (lname === me) return send(res, 422, { error: 'You cannot revoke yourself.' });
+    if (!tgt) return send(res, 404, { error: 'That player is not an admin.' });
+    if (tgt.tier === 'owner') return send(res, 403, { error: 'Owner codes are revoked by removing them from ADMIN_CODES.' });
+    await revoke(store, lname);
+    return send(res, 200, { ok: true, action, username: lname });
+  }
+  // Admins cannot moderate each other (an owner may act on staff), so a leaked staff code cannot be used to knock out the owner.
+  if (tgt && lname !== me && !(adm.tier === 'owner' && tgt.tier === 'staff')) return send(res, 403, { error: 'Admins cannot act on other admins.' });
+  if (lname === me && (action === 'ban' || action === 'quarantine' || action === 'reset')) return send(res, 422, { error: 'Not on your own account.' });
 
   const removeFromBoards = () => Promise.all(BOARDS.map((k) => store.zrem(k, lname)));
   if (action === 'kick') {

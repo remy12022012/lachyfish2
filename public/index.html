@@ -1906,7 +1906,7 @@ window.addEventListener('keydown',function(e){
 });
 
 // ---------- DEV PANEL (hidden, password-gated) ----------
-// Test tools only. The cheats are local-only and never talk to the server; the single exception is the Server admin section (kick, ban, unban, reset), which calls /api/admin with a separately typed ADMIN_PASSWORD that the server checks and the page never stores. The first cheat switches on test mode: the real save is backed up, and acctSubmit (the only code that uploads coins, faces and the cloud save) is blocked until the real save is restored or the save is wiped. The password is checked against a salted, iterated hash baked in at build time; the password itself is not in this file.
+// Test tools only. The cheats are local-only and never talk to the server; the single exception is the Server admin section (moderation tools), which calls /api/admin with the signed-in account's own session; admin rights come from a one-time code (see api/admin.js) and no password is typed or stored. The first cheat switches on test mode: the real save is backed up, and acctSubmit (the only code that uploads coins, faces and the cloud save) is blocked until the real save is restored or the save is wiped. The password is checked against a salted, iterated hash baked in at build time; the password itself is not in this file.
 var DEV_SALT='5ed5d0c16edd2a60b2f6e1f387815337',DEV_HASH='98f6859d238c5ad305bd611a7a5066e44dc3ac50adc5b0f72b4630ea676099dc',DEV_ITERS=Number('20000'),DTK='reelFacesDevTaint',DBK='reelFacesDevBackup',DLK='reelFacesDevLock';
 var devTaint=false,devBackupMem='',devUntil=0,devEl=null,devBadgeEl=null,devFails=0,devLockUntil=0,devTaps=[],devKeys=[],devMsg='',devArm='',devPR=NR-1,devPM=0;
 try{devTaint=localStorage.getItem(DTK)==='1';devLockUntil=+localStorage.getItem(DLK)||0;}catch(_){}
@@ -2004,7 +2004,7 @@ function devMenu(){
     +`<div class='sech'>Economy</div><div class='dg'>`+devB('c1m','+$1M')+devB('c1b','+$1B')+devB('c1t','+$1T')+devB('cmax','Max coins')+devB('gems','+100 gems')+devB('ups','Max all upgrades')+`</div>`
     +`<div class='sech'>Events and world</div><div class='dg'>`+devB('wx0','Rainfall')+devB('wx1','Aurora')+devB('wx2','Golden Hour')+devB('chest','Spawn chest')+devB('frenzy','Frenzy 30s')+devB('baits','All baits 10m')+devB('quests','Finish quests')+devB('daily','Reset daily')+devB('ultra','ULTRA show')+`</div>`
     +`<div class='sech'>Save and access</div><div class='dg'>`+devB('restore',devArm==='restore'?'Tap again to confirm':'Restore my real save','red')+devB('lock','Lock panel')+`</div>`
-    +`<div class='sech'>Server admin</div><div class='note'>Needs the server ADMIN_PASSWORD. It is only used for the request and never saved.</div><div class='row'><input class='acf' id='dau' maxlength='16' placeholder='Player' value='${devAU}' autocomplete='off' autocapitalize='off' spellcheck='false'><input class='acf' id='dap' type='password' maxlength='128' placeholder='Admin password' autocomplete='off'></div><div class='dg'>`+devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')+devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+`</div>`;
+    +devAdminSection();
 }
 function devRender(){
   if(!devEl)return;
@@ -2031,27 +2031,95 @@ function devUnlock(){
   }
   devRender();
 }
-// Server admin (kick / ban / unban / reset). The password is typed in, kept in memory only until the request is sent, and checked by the server against its ADMIN_PASSWORD environment variable.
-var devAU='',devAP='';
-function devAdmin(a){
-  var u=$('dau'),p=$('dap'),nm;
-  if(u){nm=u.value.trim();devAU=/^[A-Za-z0-9_.-]{0,16}$/.test(nm)?nm:'';}
-  if(p&&p.value)devAP=p.value;
-  if(!/^[A-Za-z0-9_.-]{3,16}$/.test(devAU)){devMsg='Enter the player username (3 to 16 letters, digits, _ . -).';devRender();return;}
-  if(!devAP){devMsg='Enter the admin password.';devRender();return;}
-  if((a==='ban'||a==='reset')&&devArm!==a){devArm=a;devMsg='Press '+a+' again to confirm for '+devAU+'.';devRender();return;}
-  var pw=devAP;devAP='';devArm='';devMsg='Working...';devRender();
-  api('/api/admin',{password:pw,action:a,username:devAU}).then(function(o){
-    devMsg=o.ok?'Done: '+a+' '+(o.j.username||devAU):(o.j.error||'Request failed ('+o.code+').');
+// Server admin. There is no shared password: a signed-in account becomes an admin by redeeming a one-time code, and from then on every request is authorised by its own session token (see api/admin.js and lib/adminCodes.js).
+var devAU='',devAW='',devArmU='',devAdm=null,devFlags=null,WIPE_PHRASE='DELETE ALL ACCOUNTS';
+function devEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');}
+// Asks the server whether this account is an admin (and which tier). Only redraws once the panel is unlocked, so it never wipes a password being typed.
+function devStatus(){
+  if(!acct.token){devAdm=null;return;}
+  api('/api/admin',{action:'status'}).then(function(o){
+    var j=o.j||{};
+    devAdm=o.ok?{admin:!!j.admin,tier:j.tier||null}:(o.code===503?{off:true}:{admin:false});
+    if(Date.now()<devUntil)devRender();
+  });
+}
+// A flag is {u: account, k: 'hard' | 'soft', r: reasons, t: time}.
+function devFlagText(f){
+  var why=Array.isArray(f.r)?f.r.join('; '):String(f.r==null?'':f.r);
+  return devEsc(f.u)+' ['+devEsc(f.k||'?')+']'+(f.t?' '+devEsc(new Date(f.t).toLocaleString()):'')+' - '+devEsc(why);
+}
+function devAdminSection(){
+  var h=`<div class='sech'>Server admin</div>`,own,fl,ac;
+  if(!acct.token)return h+`<div class='note'>Sign in on the Top tab first. Admin rights belong to your account.</div>`;
+  if(devAdm===null)return h+`<div class='note'>Checking admin status...</div>`;
+  if(devAdm.off)return h+`<div class='note'>Admin is not set up on the server yet (ADMIN_CODES is empty).</div>`;
+  if(!devAdm.admin)return h+`<div class='note'>Paste an admin code to make this account an admin. A code works once, for the first account that uses it.</div><div class='row'><input class='acf' id='dac' maxlength='128' placeholder='Admin code' autocomplete='off' autocapitalize='off' spellcheck='false'>${devB('adm_redeem','Redeem','green')}</div>`;
+  own=devAdm.tier==='owner';
+  h+=`<div class='note'>${devEsc(acct.name)} is an ${own?'owner':'staff'} admin.</div><div class='row'><input class='acf' id='dau' maxlength='16' placeholder='Player' value='${devEsc(devAU)}' autocomplete='off' autocapitalize='off' spellcheck='false'></div><div class='dg'>`
+    +devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')
+    +devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+devB('adm_quarantine','Quarantine')+devB('adm_unflag','Unflag')
+    +(own?devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red'):'')+devB('adm_flags','Show flags')+`</div>`;
+  if(own)h+=`<div class='sech'>Danger zone</div><div class='note'>Wipe deletes every other account and save. Type ${WIPE_PHRASE} to enable it.</div><div class='row'><input class='acf' id='daw' maxlength='32' placeholder='${WIPE_PHRASE}' value='${devEsc(devAW)}' autocomplete='off' autocapitalize='off' spellcheck='false'></div><div class='dg'>`+devB('adm_wipeall',devArm==='wipeall'?'Tap again: WIPE ALL':'Wipe all accounts','red')+`</div>`;
+  if(devFlags){
+    fl=devFlags.flags||[];ac=devFlags.accounts||[];
+    h+=`<div class='sech'>Anti-cheat flags</div><div class='note' style='text-align:left;max-height:150px;overflow:auto;word-break:break-word'>`
+      +(ac.length?ac.map(function(a){return devEsc(a.u)+(a.quarantined?' [quarantined]':'')+' - strikes: '+(+a.strikes||0);}).join('<br>')+'<br><br>':'')
+      +(fl.length?fl.slice(0,25).map(devFlagText).join('<br>'):'No flags.')+`</div>`;
+  }
+  return h;
+}
+// One admin request. On success ok(json) sets the message; any refusal shows the server's reason. A 403 means admin was revoked, so the status is refreshed.
+function devCall(body,ok){
+  api('/api/admin',body).then(function(o){
+    var j=o.j||{};
+    if(o.ok)ok(j);else{devMsg=j.error||'Request failed ('+o.code+').';if(o.code===403)devStatus();}
     devRender();toast('ADMIN: '+devMsg);
   });
+}
+function devRedeem(){
+  var c=$('dac'),code=c?c.value.trim():'';
+  if(c)c.value='';
+  if(code.length<24){devMsg='Paste the whole code.';devRender();return;}
+  devMsg='Checking the code...';devRender();
+  devCall({action:'redeem',code:code},function(j){
+    devAdm={admin:true,tier:j.tier||'staff'};
+    devMsg='Done. This account is now '+(j.tier==='owner'?'an owner':'a staff')+' admin.';
+  });
+}
+// wipeall works in batches; keep calling until the server says it is finished.
+function devWipe(n,tries){
+  api('/api/admin',{action:'wipeall',confirm:devAW}).then(function(o){
+    var j=o.j||{};
+    if(!o.ok){devMsg=j.error||'Request failed ('+o.code+').';devRender();toast('ADMIN: '+devMsg);return;}
+    n+=j.deleted||0;
+    if(!j.done&&tries<100){devMsg='Wiping... '+n+' records deleted so far.';devRender();devWipe(n,tries+1);return;}
+    if(j.done){devAW='';devFlags=null;}
+    devMsg=j.done?'Wiped. '+n+' records deleted. Your own account was kept.':'Stopped after '+n+' records. Tap wipe again to continue.';
+    devRender();toast('ADMIN: '+devMsg);
+  });
+}
+function devAdmin(a){
+  var u=$('dau'),w=$('daw'),nm;
+  if(a==='redeem'){devRedeem();return;}
+  if(u){nm=u.value.trim();devAU=/^[A-Za-z0-9_.-]{0,16}$/.test(nm)?nm:'';}
+  if(w)devAW=w.value.trim().slice(0,32);
+  if(a==='flags'){devArm='';devMsg='Loading...';devRender();devCall({action:'flags'},function(j){devFlags=j;devMsg='Showing the latest flags.';});return;}
+  if(a==='wipeall'){
+    if(devAW!==WIPE_PHRASE){devArm='';devMsg='Type exactly: '+WIPE_PHRASE;devRender();return;}
+    if(devArm!=='wipeall'){devArm='wipeall';devMsg='Tap again to delete every other account. This cannot be undone.';devRender();return;}
+    devArm='';devMsg='Wiping...';devRender();devWipe(0,0);return;
+  }
+  if(!/^[A-Za-z0-9_.-]{3,16}$/.test(devAU)){devMsg='Enter the player username (3 to 16 letters, digits, _ . -).';devRender();return;}
+  if((a==='ban'||a==='reset'||a==='revoke')&&(devArm!==a||devArmU!==devAU)){devArm=a;devArmU=devAU;devMsg='Press '+a+' again to confirm for '+devAU+'.';devRender();return;}
+  devArm='';devMsg='Working...';devRender();
+  devCall({action:a,username:devAU},function(j){devMsg='Done: '+a+' '+(j.username||devAU);});
 }
 function devAct(d){
   if(d==='close'){devHide();return;}
   if(d==='unlock'){devUnlock();return;}
   if(Date.now()>=devUntil){devMsg='Session expired. Enter the password again.';devRender();return;}
   if(d.indexOf('adm_')===0){devAdmin(d.slice(4));return;}
-  if(d==='lock'){devUntil=0;devAP='';devMsg='';devArm='';devRender();return;}
+  if(d==='lock'){devUntil=0;devMsg='';devArm='';devRender();return;}
   if(d==='restore'){
     if(devArm!=='restore'){devArm='restore';devMsg='';devRender();return;}
     devArm='';devMsg='';devRestore();devRender();return;
@@ -2076,14 +2144,15 @@ function devShow(){
       e.stopPropagation();
       if(e.key==='Escape')devHide();
       else if(e.key==='Enter'&&e.target&&e.target.id==='dpw')devUnlock();
+      else if(e.key==='Enter'&&e.target&&e.target.id==='dac')devAdmin('redeem');
     });
     app.appendChild(devEl);
   }
-  devMsg='';devEl.style.display='flex';devRender();
+  devMsg='';devAdm=null;devFlags=null;devEl.style.display='flex';devRender();devStatus();
   // A tap that opened the panel can hand focus back to the canvas afterwards; take it again on the next tick.
   setTimeout(function(){try{var pi=$('dpw');if(pi)pi.focus();else if(devEl)devEl.focus();}catch(_){}},0);
 }
-function devHide(){devArm='';devAP='';if(devEl)devEl.style.display='none';}
+function devHide(){devArm='';if(devEl)devEl.style.display='none';}
 // Hidden ways in: tap the rock in the bottom-left corner 5 times within 3 seconds, tap the coin counter 7 times within 4 seconds, or press the backtick key 3 times quickly.
 var devRock=[];
 function rockTap(){var n=Date.now();devRock=devRock.filter(function(x){return n-x<3000;});devRock.push(n);if(devRock.length>=5){devRock=[];devShow();}}

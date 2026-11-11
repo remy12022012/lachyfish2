@@ -5,6 +5,8 @@ const server = require('../dev.js');
 const { getStore } = require('../lib/store');
 const { maxRarFor } = require('../lib/util');
 const { RAR_FM } = require('../lib/cheat');
+const crypto = require('crypto');
+const { hashCode } = require('../lib/adminCodes');
 
 let base;
 async function call(method, path, body, token, hdr) {
@@ -194,35 +196,79 @@ async function t(name, fn) {
     assert.strictEqual(last.code, 429);
   });
 
-  // ---- admin ----
-  const adm = (body) => call('POST', '/api/admin', body);
+  // ---- admin (one-time codes; there is no shared password) ----
+  const adm = (body, token, n) => call('POST', '/api/admin', body, token, { 'x-real-ip': '10.2.0.' + (n || 1) }); // each group of calls uses its own client IP so the per-IP limits stay out of the way
   const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
-  const PW = 'admin-test-pw-123';
-  let D;
-  await t('admin is disabled (503) until ADMIN_PASSWORD is set', async () => {
-    delete process.env.ADMIN_PASSWORD;
-    assert.strictEqual((await adm({ password: PW, action: 'kick', username: 'dave_4' })).code, 503);
-    process.env.ADMIN_PASSWORD = PW;
+  const ipOf = (n) => ({ 'x-real-ip': '10.1.0.' + n }); // a different client IP per account, so these tests never share a signup limit
+  const signupAs = async (name, pw, n) => {
+    const r = await call('POST', '/api/signup', { username: name, password: pw }, undefined, ipOf(n));
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); return r.j.token;
+  };
+  const mkCode = () => crypto.randomBytes(20).toString('hex').match(/.{4}/g).join('-');
+  const codes = { owner: mkCode(), staff: mkCode(), staff2: mkCode(), spare: mkCode() };
+  const setCodes = (list) => { process.env.ADMIN_CODES = (list || []).join(','); };
+  const allCodes = () => ['owner:' + hashCode(codes.owner), hashCode(codes.staff), hashCode(codes.staff2), hashCode(codes.spare)];
+  const statusOf = async (token, n) => (await adm({ action: 'status' }, token, n)).j;
+  let D, O, S, S2, L;
+
+  await t('admin is disabled (503) until ADMIN_CODES holds a valid hash', async () => {
+    delete process.env.ADMIN_CODES;
+    assert.strictEqual((await adm({ action: 'status' }, A)).code, 503);
+    setCodes(['not-a-hash', codes.staff]); // raw codes and junk are ignored; only 64-hex SHA-256 hashes count
+    assert.strictEqual((await adm({ action: 'status' }, A)).code, 503);
+    setCodes(allCodes());
   });
-  await t('admin rejects GET and malformed bodies', async () => {
+  await t('admin rejects GET, anonymous and malformed requests', async () => {
     assert.strictEqual((await call('GET', '/api/admin')).code, 405);
-    assert.strictEqual((await adm('{not json')).code, 422);
+    assert.strictEqual((await adm({ action: 'status' })).code, 401, 'no session, no admin');
+    D = await signupAs('dave_4', 'hunter44', 50);
+    assert.strictEqual((await adm('{not json', D)).code, 422);
+    assert.strictEqual((await adm({ action: 'explode' }, D)).code, 403, 'not an admin');
   });
-  await t('wrong or missing admin password is 403 and does nothing', async () => {
-    const s = await call('POST', '/api/signup', { username: 'dave_4', password: 'hunter44' });
-    assert.strictEqual(s.code, 200, JSON.stringify(s.j)); D = s.j.token;
-    assert.strictEqual((await adm({ password: 'wrong', action: 'ban', username: 'dave_4' })).code, 403);
-    assert.strictEqual((await adm({ action: 'ban', username: 'dave_4' })).code, 403);
-    assert.strictEqual((await call('GET', '/api/me', undefined, D)).code, 200);
+  await t('a normal player is not an admin: status says so and every action is 403', async () => {
+    const s = await statusOf(D); assert.strictEqual(s.admin, false); assert.strictEqual(s.tier, null);
+    for (const body of [{ action: 'kick', username: 'dave_4' }, { action: 'flags' }, { action: 'wipeall', confirm: 'DELETE ALL ACCOUNTS' }, { action: 'revoke', username: 'dave_4' }]) {
+      assert.strictEqual((await adm(body, D)).code, 403, body.action);
+    }
+    assert.strictEqual((await call('GET', '/api/me', undefined, D)).code, 200, 'still signed in');
+  });
+  await t('redeem: wrong, short, unknown and missing codes are 403 and change nothing', async () => {
+    for (const code of ['nope', mkCode(), undefined]) {
+      const r = await adm({ action: 'redeem', code }, D); assert.strictEqual(r.code, 403, JSON.stringify(r.j)); assert.match(r.j.error, /not valid/);
+    }
+    assert.strictEqual((await statusOf(D)).admin, false);
+    assert.strictEqual(await getStore().get('adm:dave_4'), null);
+  });
+  await t('redeem: a staff code turns the account into a staff admin for good', async () => {
+    S = await signupAs('staff_1', 'staff-pw-1', 51);
+    const r = await adm({ action: 'redeem', code: codes.staff }, S, 2);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.strictEqual(r.j.admin, true); assert.strictEqual(r.j.tier, 'staff');
+    const s = await statusOf(S, 2); assert.strictEqual(s.admin, true); assert.strictEqual(s.tier, 'staff');
+    assert.strictEqual((await adm({ action: 'redeem', code: codes.staff }, S, 2)).code, 200, 'the same account may redeem again');
+    const loose = codes.staff.toUpperCase().replace(/-/g, ' ');
+    assert.strictEqual((await adm({ action: 'redeem', code: loose }, S, 2)).code, 200, 'case, spaces and dashes are ignored');
+  });
+  await t('redeem: a code works for one account only', async () => {
+    L = await signupAs('late_1', 'late-pw-1', 52);
+    const r = await adm({ action: 'redeem', code: codes.staff }, L, 3);
+    assert.strictEqual(r.code, 403); assert.match(r.j.error, /already been used/);
+    assert.strictEqual((await statusOf(L, 3)).admin, false);
+    assert.strictEqual(await getStore().get('adm:late_1'), null);
+  });
+  await t('redeem: an owner code gives the owner tier', async () => {
+    O = await signupAs('boss_1', 'boss-pw-1', 53);
+    const r = await adm({ action: 'redeem', code: codes.owner }, O, 2);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.strictEqual(r.j.tier, 'owner');
+    const s = await statusOf(O, 2); assert.strictEqual(s.admin, true); assert.strictEqual(s.tier, 'owner');
   });
   await t('admin validates action and username; unknown player is 404', async () => {
-    assert.strictEqual((await adm({ password: PW, action: 'explode', username: 'dave_4' })).code, 422);
-    assert.strictEqual((await adm({ password: PW, action: 'kick', username: '<b>' })).code, 422);
-    assert.strictEqual((await adm({ password: PW, action: 'kick', username: 'nobody_x' })).code, 404);
+    assert.strictEqual((await adm({ action: 'explode', username: 'dave_4' }, S, 2)).code, 422);
+    assert.strictEqual((await adm({ action: 'kick', username: '<b>' }, S, 2)).code, 422);
+    assert.strictEqual((await adm({ action: 'kick', username: 'nobody_x' }, S, 2)).code, 404);
   });
   await t('kick ends existing sessions but the player can sign in again', async () => {
     await sleep(5);
-    const r = await adm({ password: PW, action: 'kick', username: 'DAVE_4' });
+    const r = await adm({ action: 'kick', username: 'DAVE_4' }, S, 2);
     assert.strictEqual(r.code, 200, JSON.stringify(r.j));
     assert.strictEqual((await call('GET', '/api/me', undefined, D)).code, 401);
     await sleep(5);
@@ -234,11 +280,11 @@ async function t(name, fn) {
     unlock('dave_4'); assert.strictEqual((await call('POST', '/api/submit', mk({ coins: 7e6 }), D)).code, 200);
     assert.notStrictEqual(await getStore().zrevrank('lb:peak', 'dave_4'), null);
     await sleep(5);
-    assert.strictEqual((await adm({ password: PW, action: 'ban', username: 'dave_4' })).code, 200);
+    assert.strictEqual((await adm({ action: 'ban', username: 'dave_4' }, S, 2)).code, 200);
     assert.strictEqual((await call('GET', '/api/me', undefined, D)).code, 401);
     assert.strictEqual(await getStore().zrevrank('lb:peak', 'dave_4'), null);
     assert.strictEqual((await call('POST', '/api/login', { username: 'dave_4', password: 'hunter44' })).code, 403);
-    assert.strictEqual((await adm({ password: PW, action: 'unban', username: 'dave_4' })).code, 200);
+    assert.strictEqual((await adm({ action: 'unban', username: 'dave_4' }, S, 2)).code, 200);
     await sleep(5);
     const l = await call('POST', '/api/login', { username: 'dave_4', password: 'hunter44' });
     assert.strictEqual(l.code, 200, JSON.stringify(l.j)); D = l.j.token;
@@ -247,7 +293,7 @@ async function t(name, fn) {
     unlock('dave_4'); assert.strictEqual((await call('POST', '/api/submit', mk({ coins: 5e6 }), D)).code, 200);
     assert.strictEqual((await call('GET', '/api/leaderboard?u=dave_4')).code, 200);
     await sleep(5);
-    assert.strictEqual((await adm({ password: PW, action: 'reset', username: 'dave_4' })).code, 200);
+    assert.strictEqual((await adm({ action: 'reset', username: 'dave_4' }, S, 2)).code, 200);
     assert.strictEqual((await call('GET', '/api/leaderboard?u=dave_4')).code, 404);
     assert.strictEqual(await getStore().get('sv:dave_4'), null);
     await sleep(5);
@@ -255,24 +301,68 @@ async function t(name, fn) {
     assert.strictEqual(l.code, 200, JSON.stringify(l.j));
     assert.strictEqual((await call('GET', '/api/me', undefined, l.j.token)).j.save, null);
   });
-  await t('wipeall needs the confirmation phrase, then deletes every account, save, session and board', async () => {
-    assert.strictEqual((await adm({ password: PW, action: 'wipeall' })).code, 422);
-    assert.strictEqual((await adm({ password: PW, action: 'wipeall', confirm: 'yes' })).code, 422);
+  await t('tiers: staff cannot wipe, revoke or touch other admins; an owner can act on staff', async () => {
+    const w = await adm({ action: 'wipeall', confirm: 'DELETE ALL ACCOUNTS' }, S, 2);
+    assert.strictEqual(w.code, 403); assert.match(w.j.error, /owner/i);
+    assert.strictEqual((await adm({ action: 'revoke', username: 'late_1' }, S, 2)).code, 403);
+    const k = await adm({ action: 'kick', username: 'boss_1' }, S, 2);
+    assert.strictEqual(k.code, 403); assert.match(k.j.error, /other admins/);
+    assert.strictEqual((await adm({ action: 'ban', username: 'staff_1' }, S, 2)).code, 422, 'not on your own account');
+    assert.strictEqual((await call('GET', '/api/me', undefined, O)).code, 200, 'the owner was not touched');
+    assert.strictEqual((await adm({ action: 'quarantine', username: 'staff_1' }, O, 2)).code, 200, 'an owner may act on staff');
+    assert.strictEqual((await adm({ action: 'unflag', username: 'staff_1' }, O, 2)).code, 200);
+  });
+  await t('revoke: an owner ends a staff admin, and the spent code cannot be used again', async () => {
+    S2 = await signupAs('staff_2', 'staff2-pw-1', 54);
+    assert.strictEqual((await adm({ action: 'redeem', code: codes.staff2 }, S2, 4)).code, 200);
+    assert.strictEqual((await statusOf(S2, 4)).admin, true);
+    assert.strictEqual((await adm({ action: 'revoke', username: 'dave_4' }, O, 2)).code, 404, 'not an admin');
+    assert.strictEqual((await adm({ action: 'revoke', username: 'boss_1' }, O, 2)).code, 422, 'not yourself');
+    assert.strictEqual((await adm({ action: 'revoke', username: 'staff_2' }, O, 2)).code, 200);
+    assert.strictEqual((await statusOf(S2, 4)).admin, false);
+    assert.strictEqual((await adm({ action: 'kick', username: 'dave_4' }, S2, 4)).code, 403);
+    const again = await adm({ action: 'redeem', code: codes.staff2 }, S2, 4);
+    assert.strictEqual(again.code, 403); assert.match(again.j.error, /already been used/);
+    const other = await adm({ action: 'redeem', code: codes.staff2 }, L, 3);
+    assert.strictEqual(other.code, 403); assert.match(other.j.error, /already been used/);
+  });
+  await t('removing a hash from ADMIN_CODES switches that admin off at once; putting it back restores it', async () => {
+    setCodes(allCodes().filter((h) => h !== hashCode(codes.staff)));
+    assert.strictEqual((await statusOf(S, 5)).admin, false);
+    assert.strictEqual((await adm({ action: 'kick', username: 'dave_4' }, S, 5)).code, 403);
+    setCodes(allCodes());
+    assert.strictEqual((await statusOf(S, 5)).admin, true);
+    setCodes(allCodes().map((h) => (h === hashCode(codes.staff) ? 'owner:' + h : h))); // the tier follows the env var
+    assert.strictEqual((await statusOf(S, 5)).tier, 'owner');
+    setCodes(allCodes());
+    assert.strictEqual((await statusOf(S, 5)).tier, 'staff');
+  });
+  await t('wipeall: owner only, exact phrase needed, keeps the caller, deletes everyone else', async () => {
+    const PH = 'DELETE ALL ACCOUNTS';
+    assert.strictEqual((await adm({ action: 'wipeall', confirm: PH }, S, 6)).code, 403, 'staff cannot');
+    const dl = await call('POST', '/api/login', { username: 'dave_4', password: 'hunter44' }); // reset ended the old session, so sign in again
+    assert.strictEqual(dl.code, 200, JSON.stringify(dl.j)); D = dl.j.token;
+    assert.strictEqual((await adm({ action: 'wipeall', confirm: PH }, D, 6)).code, 403, 'players cannot');
+    assert.strictEqual((await adm({ action: 'wipeall' }, O, 6)).code, 422);
+    assert.strictEqual((await adm({ action: 'wipeall', confirm: 'yes' }, O, 6)).code, 422);
     assert.strictEqual((await call('GET', '/api/me', undefined, A)).code, 200, 'nothing deleted without the phrase');
-    const r = await adm({ password: PW, action: 'wipeall', confirm: 'DELETE ALL ACCOUNTS' });
+    const r = await adm({ action: 'wipeall', confirm: PH }, O, 6);
     assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.strictEqual(r.j.done, true); assert.ok(r.j.deleted > 0);
     assert.strictEqual((await call('GET', '/api/me', undefined, A)).code, 401);
+    assert.strictEqual((await call('GET', '/api/me', undefined, S)).code, 401);
     assert.strictEqual((await call('POST', '/api/login', { username: 'alice', password: 'secret1' })).code, 401);
+    assert.strictEqual((await call('GET', '/api/me', undefined, O)).code, 200, 'the owner stays signed in');
+    const s = await statusOf(O, 6); assert.strictEqual(s.admin, true); assert.strictEqual(s.tier, 'owner');
     const lb = await call('GET', '/api/leaderboard?feed=1');
     assert.strictEqual(lb.j.total, 0); assert.deepStrictEqual(lb.j.rows, []); assert.deepStrictEqual(lb.j.feed, []);
     assert.strictEqual((await call('POST', '/api/signup', { username: 'alice', password: 'fresh-pw-1' })).code, 200, 'names are free again');
+    // A name registered again after the wipe is a different account and inherits no admin rights, and its old code stays spent.
+    const S1 = await signupAs('staff_1', 'fresh-staff-1', 55);
+    assert.strictEqual((await statusOf(S1, 6)).admin, false);
+    const reuse = await adm({ action: 'redeem', code: codes.staff }, S1, 7);
+    assert.strictEqual(reuse.code, 403); assert.match(reuse.j.error, /already been used/);
   });
   // ---- change password ----
-  const ipOf = (n) => ({ 'x-real-ip': '10.1.0.' + n }); // a different client IP per account, so these tests never share a signup limit
-  const signupAs = async (name, pw, n) => {
-    const r = await call('POST', '/api/signup', { username: name, password: pw }, undefined, ipOf(n));
-    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); return r.j.token;
-  };
   let P;
   await t('change password: needs a session, validates input, and never signs the player out on a mistake', async () => {
     assert.strictEqual((await call('POST', '/api/password', { oldPassword: 'a', newPassword: 'bbbbbb' })).code, 401);
@@ -338,21 +428,21 @@ async function t(name, fn) {
   await t('anti-cheat: a quarantined account keeps syncing but stays off the boards; admin flags shows it and unflag clears it', async () => {
     let r = await sync({ coins: 5000 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
     assert.strictEqual(await getStore().zrevrank('lb:peak', 'cheat_5'), null);
-    const fl = await adm({ password: PW, action: 'flags' });
+    const fl = await adm({ action: 'flags' }, O, 8);
     assert.strictEqual(fl.code, 200, JSON.stringify(fl.j));
     assert.ok(fl.j.flags.some((f) => f.u === 'cheat_5' && f.k === 'hard'), 'hard flag listed');
     assert.ok(fl.j.accounts.some((a) => a.u === 'cheat_5' && a.quarantined && a.strikes >= 3), 'account shown as quarantined');
-    assert.strictEqual((await adm({ action: 'flags' })).code, 403, 'flags need the admin password');
-    assert.strictEqual((await adm({ password: PW, action: 'unflag', username: 'cheat_5' })).code, 200);
+    assert.strictEqual((await adm({ action: 'flags' }, CH, 8)).code, 403, 'flags need an admin account');
+    assert.strictEqual((await adm({ action: 'unflag', username: 'cheat_5' }, O, 8)).code, 200);
     r = await sync({ coins: 6000 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
     assert.notStrictEqual(await getStore().zrevrank('lb:peak', 'cheat_5'), null, 'back on the board');
   });
   await t('anti-cheat: admin can quarantine an account by hand', async () => {
-    assert.strictEqual((await adm({ password: PW, action: 'quarantine', username: 'cheat_5' })).code, 200);
+    assert.strictEqual((await adm({ action: 'quarantine', username: 'cheat_5' }, O, 8)).code, 200);
     assert.strictEqual(await getStore().zrevrank('lb:peak', 'cheat_5'), null);
     const r = await sync({ coins: 7000 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
     assert.strictEqual(await getStore().zrevrank('lb:peak', 'cheat_5'), null, 'stays hidden');
-    assert.strictEqual((await adm({ password: PW, action: 'unflag', username: 'cheat_5' })).code, 200);
+    assert.strictEqual((await adm({ action: 'unflag', username: 'cheat_5' }, O, 8)).code, 200);
   });
   await t('inspect(): honest saves are clean, impossible ones are hard findings, odd ones soft', async () => {
     const { inspect } = require('../lib/cheat'), now = Date.now();
@@ -387,9 +477,16 @@ async function t(name, fn) {
     assert.deepStrictEqual(ar[1].split(',').map((x) => +x.trim()), ASC_REQ);
   });
 
-  await t('wrong admin passwords are rate limited (429), even for the right password afterwards', async () => {
-    let last; for (let i = 0; i < 8; i++) last = await adm({ password: 'guess' + i, action: 'kick', username: 'dave_4' });
+  await t('wrong admin codes are rate limited per IP and per account (429), even the right code waits', async () => {
+    const X = await signupAs('guess_1', 'guess-pw-1', 56);
+    let last; for (let i = 0; i < 7; i++) last = await adm({ action: 'redeem', code: mkCode() }, X, 9);
     assert.strictEqual(last.code, 429);
+    assert.strictEqual((await adm({ action: 'redeem', code: codes.spare }, X, 9)).code, 429, 'same IP and account');
+    assert.strictEqual((await adm({ action: 'redeem', code: codes.spare }, X, 10)).code, 429, 'the account stays locked from another IP');
+    assert.strictEqual(await getStore().get('adm:guess_1'), null, 'nothing was bound');
+    const Y = await signupAs('guess_2', 'guess-pw-2', 57);
+    const ok = await adm({ action: 'redeem', code: codes.spare }, Y, 11);
+    assert.strictEqual(ok.code, 200, 'another account is not locked out: ' + JSON.stringify(ok.j));
   });
 
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
