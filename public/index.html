@@ -236,6 +236,17 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 #upd.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 #upd span{font-family:var(--fd);letter-spacing:.6px}
 #upd .btn{padding:3px 12px;font-size:14px}
+#gate{position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:12px;overflow:auto;background:radial-gradient(ellipse at 50% 25%,#3a1a9a,#12063a 72%)}
+#gate.show{display:flex}
+#gate .gc{width:min(380px,100%);margin:auto;padding:12px 16px 14px;border-radius:20px;text-align:center;background:linear-gradient(#5a2bb8,#2a0f70);border:4px solid #ffe36b;box-shadow:0 0 22px rgba(255,227,107,.45),0 5px 0 var(--ink)}
+#gate .gt{font-family:var(--fd);font-size:clamp(22px,6vh,32px);letter-spacing:.8px;margin-bottom:4px}
+#gate p{margin:0 0 8px;font-size:13px;font-weight:500}
+#gate .acf{display:block;width:100%;box-sizing:border-box;margin:0 0 6px}
+#gate .gb{display:flex;gap:8px;justify-content:center;margin:4px 0}
+#gate .gb .btn{font-size:15px;padding:5px 14px}
+#gmsg{min-height:1.3em;font-size:12px;color:#ffe0e0;margin:2px 0}
+#gate .gskip{background:none;border:0;color:#bcd;font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer;padding:2px}
+@media (max-height:480px){#gate p{display:none}#gate .gc{padding:8px 12px}}
 #updov{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(10,3,40,.9)}
 #updov.show{display:flex}
 #updov .uc{width:min(380px,100%);padding:14px 16px 16px;border-radius:20px;text-align:center;background:linear-gradient(#5a2bb8,#2a0f70);border:4px solid #ffe36b;box-shadow:0 0 22px rgba(255,227,107,.55),0 5px 0 var(--ink)}
@@ -270,6 +281,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 <div id='body'></div>
 </div>
 <div id='updov' role='alertdialog' aria-modal='true'><div class='uc'><div class='ut'>&#127881; Update required</div><p id='updmsg'></p><button class='btn gold' id='updgo'>Reload now</button></div></div>
+<div id='gate' role='dialog' aria-modal='true'><div class='gc'><div class='gt'>&#127907; Lachy Fish</div><p>Create an account or sign in to play. Your progress is saved to the cloud and you get a place on the leaderboard.</p><input class='acf' id='gu' maxlength='16' placeholder='Username' autocomplete='username'><input class='acf' id='gp' type='password' maxlength='72' placeholder='Password (6+ characters)' autocomplete='current-password'><div class='gb'><button class='btn gold' id='gsu'>Create account</button><button class='btn green' id='gli'>Sign in</button></div><div id='gmsg'></div><button class='gskip' id='gsk'>Play offline for now</button></div></div>
 </div>
 <script>
 (function(){
@@ -478,7 +490,7 @@ function crewList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].crew)l.pus
 function crewCasts(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].crew)s+=crewFm(faces[i]);return s;}
 // Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions (see ASC_REQ): below a rarity's ascension requirement it cannot be caught or fused at all, and each ascension past it multiplies the odds.
 var BUILD='__BUILD_ID__',BUILD_OK=BUILD.indexOf('__')!==0; // the build step stamps the real id into the page; an unstamped page never claims to be outdated
-var SEASON=2,MAX_ASC=20,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
+var SEASON=3,MAX_ASC=20,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
 // Minimum ascensions needed before each rarity (by index) can be caught or fused. Keep in sync with ASC_REQ in lib/util.js: the server rejects stats and saves that break it.
 var ASC_REQ=[0,0,0,0,0,0,0,3,5,7,9,11,13,17,19,20,20];
 function maxRarFor(a){var m=0,i;for(i=0;i<ASC_REQ.length;i++)if(ASC_REQ[i]<=a)m=i;return m;}
@@ -1696,6 +1708,29 @@ function doAuth(kind){
     render();
   }).catch(function(){acct.busy=false;acct.msg='Cannot reach the server. Online play needs the deployed site.';render();});
 }
+// ---------- LAUNCH SIGN-IN ----------
+var gateEl=$('gate'),gateSkip=false,gateBusy=false;
+function gateMsg(t){var m=$('gmsg');if(m)m.textContent=t||'';}
+function gateShow(msg){if(!gateEl||acct.token||gateSkip||loading)return;gateEl.classList.add('show');gateMsg(msg);var u=$('gu');if(u)setTimeout(function(){try{u.focus();}catch(_){}},60);}
+function gateHide(){if(gateEl)gateEl.classList.remove('show');}
+function gateAuth(kind){
+  var ue=$('gu'),pe=$('gp');if(gateBusy||!ue||!pe)return;
+  var u=ue.value.trim(),p=pe.value;
+  if(!u||!p){gateMsg('Enter a username and password.');return;}
+  gateBusy=true;gateMsg(kind==='signup'?'Creating your account...':'Signing in...');
+  api('api/'+kind,{username:u,password:p}).then(function(r){
+    gateBusy=false;
+    if(r.ok&&r.j.token){acct.token=r.j.token;acct.name=r.j.name;acct.u='';acct.msg='';acctStore();pe.value='';gateHide();afterSignIn();render();}
+    else gateMsg(r.j.error||'Something went wrong.');
+  }).catch(function(){gateBusy=false;gateMsg('Cannot reach the server. Check your connection and try again.');});
+}
+if(gateEl){
+  ['pointerdown','mousedown','touchstart','keydown','keyup'].forEach(function(ev){gateEl.addEventListener(ev,function(e){e.stopPropagation();});});
+  gateEl.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target&&(e.target.id==='gu'||e.target.id==='gp'))gateAuth(e.shiftKey?'signup':'login');});
+  $('gsu').addEventListener('click',function(){gateAuth('signup');});
+  $('gli').addEventListener('click',function(){gateAuth('login');});
+  $('gsk').addEventListener('click',function(){gateSkip=true;gateHide();});
+}
 function changePw(){
   var o=$('pw0'),n=$('pw1'),c=$('pw2');if(acct.busy||!o||!n||!c)return;
   if(!o.value||!n.value){acct.msg='Enter your current password and a new one.';render();return;}
@@ -1716,7 +1751,7 @@ function afterSignIn(){
     acctSubmit();fetchLb(true);if(tab==='top')renderSafe();
   }).catch(function(){});
 }
-function signOut(msg){acct.pwOpen=false;acct.token='';acct.name='';acct.rank=0;acct.msg=msg||'';acctStore();if(tab==='top')renderSafe();}
+function signOut(msg){acct.pwOpen=false;acct.token='';acct.name='';acct.rank=0;acct.msg=msg||'';acctStore();gateSkip=false;gateShow(msg||'');if(tab==='top')renderSafe();}
 function applyBlob(s){
   try{var o=JSON.parse(s);o.G.ts=Date.now();localStorage.setItem(KEY,JSON.stringify(o));}catch(_){acct.msg='Browser storage is unavailable here.';return;}
   loadGame();ensureQuests();recount();dirty=true;hudTick();
@@ -2302,7 +2337,7 @@ render();hudTick();
     if(lt&&Math.floor(ms/2200)!==ti){ti=Math.floor(ms/2200);lt.textContent=tips[ti%tips.length];}
     if(!fin&&((ok===ims.length&&ms>=2400)||ms>9000)){
       fin=true;clearInterval(iv);if(lb)lb.style.width='100%';
-      el.classList.add('out');loading=false;
+      el.classList.add('out');loading=false;gateShow('');
       setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},700);
       if(welcome>0)setTimeout(function(){banner('WELCOME BACK!','Your faces earned $'+fmt(welcome)+' while you were away','#9be8a8');},500);
     }

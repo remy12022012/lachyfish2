@@ -18,7 +18,7 @@ async function call(method, path, body, token, hdr) {
   try { j = await r.json(); } catch (e) { /* empty */ }
   return { code: r.status, j };
 }
-const stats = (o) => Object.assign({ season: 2, coins: 1000, inc: 10, asc: 0, caught: 5, book: 3, bestRar: 2, bestMut: 0, top: [[2, 0, 1], [1, 0, 1]], cps: 1.5 }, o || {});
+const stats = (o) => Object.assign({ season: 3, coins: 1000, inc: 10, asc: 0, caught: 5, book: 3, bestRar: 2, bestMut: 0, top: [[2, 0, 1], [1, 0, 1]], cps: 1.5 }, o || {});
 // Builds a submission whose cloud save agrees with its stats (same coins, caught, Book, top faces and crew), as a real client sends it.
 // x.g overrides save fields (for example { up: { val: 51 } }), x.faces replaces the faces list, x.save replaces the whole save string.
 function mk(o, x) {
@@ -33,7 +33,7 @@ function mk(o, x) {
   const book = {}, cap = maxRarFor(Math.max(0, Math.min(20, Math.floor(s.asc) || 0))), n = () => Object.keys(book).length;
   for (let r = 0; r <= cap && n() < s.book; r++) for (let m = 0; m < 5 && n() < s.book; m++) book[r + '_' + m] = 1;
   const g = Object.assign({ asc: s.asc, coins: Math.floor(s.coins), caught: s.caught, gems: 0, up: {}, book, fused: s.book, ach: {} }, x.g || {});
-  s.save = x.save !== undefined ? x.save : JSON.stringify({ S: 2, G: g, faces });
+  s.save = x.save !== undefined ? x.save : JSON.stringify({ S: 3, G: g, faces });
   return s;
 }
 const unlock = (name) => getStore().del('rl:submit:' + name.toLowerCase());
@@ -145,7 +145,7 @@ async function t(name, fn) {
     assert.strictEqual(fs.readFileSync(idx, 'utf8'), before, 'source page untouched');
   });
   await t('cloud saves with a wrong season, tampered ascensions or impossible faces are not stored', async () => {
-    const good = { S: 2, G: { asc: 0, coins: 1 }, faces: [[1, 2, 0, 1, 0, 0, 0]] };
+    const good = { S: 3, G: { asc: 0, coins: 1 }, faces: [[1, 2, 0, 1, 0, 0, 0]] };
     const bads = [{ ...good, S: 1 }, { ...good, G: { asc: 5 } }, { ...good, faces: [[1, 16, 0, 1, 0, 0, 0]] }, { ...good, G: { asc: 0, book: { '16_0': 1 } } }, { ...good, faces: [[1, 2, 9, 1, 0, 0, 0]] }];
     for (const bad of bads) {
       unlock('alice'); const r = await call('POST', '/api/submit', stats({ save: JSON.stringify(bad) }), A);
