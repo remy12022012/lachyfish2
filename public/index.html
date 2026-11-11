@@ -270,6 +270,14 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 .tab{flex:1 1 0;min-height:36px;max-height:92px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;font-size:clamp(11px,2vh,16px);line-height:1;border-radius:16px;border-width:4px}
 .tab i{font-style:normal;font-size:clamp(16px,3.6vh,34px);line-height:1}
 .tab span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab[data-tab='settings']{margin-top:auto;flex-shrink:0}
+#lbm{flex:none;margin:clamp(5px,1.2vh,10px) 7px 0;padding:4px 5px 5px;border:3px solid #1a0a4a;border-radius:12px;background:linear-gradient(#3a1a8a,#25106a);box-shadow:0 2px 0 #1a0a4a;cursor:pointer;text-align:center;overflow:hidden;color:#e9dcff}
+#lbm:hover{filter:brightness(1.15)}
+#lbm.on{border-color:#ffe36b;box-shadow:0 2px 0 #1a0a4a,0 0 10px rgba(255,200,0,.8)}
+#lbm b{display:block;font-family:var(--fd);font-weight:400;font-size:clamp(11px,1.9vh,15px);letter-spacing:.6px;color:#ffe36b}
+#lbm small{display:block;font-size:clamp(9px,1.5vh,12px);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lbm small.me{color:#9dffb0;font-weight:900}
+@media (max-height:480px){#lbm small:not(.me){display:none}#lbm{padding:2px 4px 3px}}
 #drawer{display:none;position:absolute;right:100%;top:0;bottom:0;width:clamp(280px,34vw,460px);max-width:calc(100vw - 108px);flex-direction:column;background:radial-gradient(circle at 2px 2px,rgba(255,255,255,.08) 1.6px,transparent 2.2px) 0 0/18px 18px,linear-gradient(#4a1a99,#1f0b5c);border-left:5px solid #1a0a4a;box-shadow:-8px 0 26px rgba(130,70,255,.55);animation:dopen .18s ease-out}
 #drawer.open{display:flex}
 #dhead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:linear-gradient(#6b3ccc,#4a22a0);border-bottom:3px solid #1a0a4a}
@@ -293,6 +301,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 </div>
 <div id='panel'>
 <div id='drawer'><div id='dhead'><b id='dtitle'></b><button class='mini' id='dclose' title='Close'>&#10005;</button></div><div id='body'></div></div>
+<div id='lbm' title='Leaderboard (click to open)'><b>&#127942; Top</b><small>...</small></div>
 <div id='tabs'>
 <button class='tab' data-tab='faces'><i>&#128031;</i><span>Faces</span></button>
 <button class='tab' data-tab='shop'><i>&#128736;</i><span>Upgrades</span></button>
@@ -1852,9 +1861,26 @@ function fetchLb(force){
     acct.lbBusy=false;
     if(v!==acct.view){acct.lbT=0;}else if(r.ok){acct.rows=r.j.rows||[];acct.vtotal=r.j.total||0;acct.vrank=(r.j.me&&r.j.me.rank)||0;if(Array.isArray(r.j.feed))acct.feed=r.j.feed;if(v==='life'){acct.total=acct.vtotal;if(acct.vrank)acct.rank=acct.vrank;}acct.offline=false;}
     else acct.offline=true;
-    if(tab==='top')renderSafe();
-  }).catch(function(){acct.lbBusy=false;acct.offline=true;if(tab==='top')renderSafe();});
+    lbMini();if(tab==='top')renderSafe();
+  }).catch(function(){acct.lbBusy=false;acct.offline=true;lbMini();if(tab==='top')renderSafe();});
 }
+function lbMini(){
+  var el=$('lbm'),rows=acct.rows,h='<b>&#127942; Top</b>',i;
+  if(!el)return;
+  if(!rows)h+='<small>'+(acct.offline?'offline':'...')+'</small>';
+  else{
+    if(acct.token&&acct.rank)h+='<small class="me">You #'+acct.rank+'</small>';
+    for(i=0;i<rows.length&&i<3;i++)h+='<small>'+MED[i]+' '+esc(rows[i].name)+'</small>';
+    if(!rows.length)h+='<small>No one yet</small>';
+  }
+  el.innerHTML=h;el.classList.toggle('on',tab==='top');
+}
+(function(){
+  var el=$('lbm');if(!el)return;
+  el.addEventListener('click',function(){if(tab!=='top')gotoTab('top');});
+  setTimeout(function(){fetchLb(true);},2500);
+  setInterval(function(){if(!document.hidden)fetchLb();},30000);
+})();
 function ago(t){var s=Math.max(0,(Date.now()-(+t||0))/1000);return s<90?'now':s<5400?Math.round(s/60)+'m ago':s<172800?Math.round(s/3600)+'h ago':Math.round(s/86400)+'d ago';}
 function faceChips(top){
   var h='',i,f;top=Array.isArray(top)?top:[];
@@ -2026,7 +2052,7 @@ function onAct(e){
   dirty=true;render();hudTick();selRefresh();
 }
 body.addEventListener('click',onAct);$('sel').addEventListener('click',onAct);
-function gotoTab(x){tab=(tab===x)?'':x;wipeArm=false;ascArm=false;body.scrollTop=0;render();}
+function gotoTab(x){tab=(tab===x)?'':x;wipeArm=false;ascArm=false;body.scrollTop=0;render();lbMini();}
 (function(){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].title=(TABT[tb[i].dataset.tab]||'')+' ('+(i<9?i+1:({trade:'T',settings:'S'})[tb[i].dataset.tab])+')';})();
 $('tabs').addEventListener('click',function(e){
   var b=e.target&&e.target.closest?e.target.closest('button'):null;
