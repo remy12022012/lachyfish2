@@ -1,7 +1,7 @@
 'use strict';
-const { MAX_SAVE, send, readBody, handler, authUser, allow, parseJSON, validateStats } = require('../lib/util');
+const { SEASON, MIN_ASC_MS, send, readBody, handler, authUser, allow, parseJSON, validateStats, validateSave } = require('../lib/util');
 
-const MAX_ASC_JUMP = 25; // ascensions gained between two syncs
+const MAX_ASC_JUMP = 2; // ascensions gained between two syncs (each costs cash and wipes the run, so more than this in one sync is tampering)
 const FEED_MIN_RAR = 5; // only Mythic and above make the activity feed
 
 module.exports = handler(['POST'], async (req, res, store) => {
@@ -10,6 +10,7 @@ module.exports = handler(['POST'], async (req, res, store) => {
   if (!(await allow(store, 'submit:' + lname, 1, 5))) return send(res, 429, { error: 'Syncing too fast. Try again in a few seconds.' });
 
   const b = await readBody(req);
+  if (b && typeof b === 'object' && b.season !== SEASON) return send(res, 409, { error: 'The game was updated. Reload the page to keep playing online.' });
   const s = validateStats(b);
   if (!s) return send(res, 422, { error: 'Invalid stats.' });
 
@@ -17,9 +18,14 @@ module.exports = handler(['POST'], async (req, res, store) => {
   const user = parseJSON(urec);
   if (!user) return send(res, 401, { error: 'Please sign in again.' });
   const prev = parseJSON(prevRaw);
-  if (prev && s.asc > prev.asc + MAX_ASC_JUMP) return send(res, 422, { error: 'Invalid stats.' });
+  // A brand-new account counts as 0 ascensions, so it cannot start with a high number either.
+  const prevAsc = prev ? prev.asc : 0;
+  if (s.asc > prevAsc + MAX_ASC_JUMP) return send(res, 422, { error: 'Invalid stats.' });
 
   const now = Date.now();
+  // Real time must have passed for every ascension gained: counted from the last ascension (or from account creation).
+  const lastAsc = prev ? (prev.ascAt || prev.created || now) : (user.created || now);
+  if (s.asc > prevAsc && now - lastAsc < (s.asc - prevAsc) * MIN_ASC_MS) return send(res, 422, { error: 'Invalid stats.' });
   const asc = prev ? Math.max(prev.asc, s.asc) : s.asc;
   const p = {
     name: user.name,
@@ -32,7 +38,7 @@ module.exports = handler(['POST'], async (req, res, store) => {
     bestMut: prev ? Math.max(prev.bestMut, s.bestMut) : s.bestMut,
     top: s.top.length ? s.top : (prev ? prev.top : []),
     cps: s.cps,
-    pearls: s.pearls,
+    ascAt: asc > prevAsc ? now : (prev && prev.ascAt) || 0,
     created: prev ? prev.created : user.created || now,
     t: now,
   };
@@ -49,8 +55,7 @@ module.exports = handler(['POST'], async (req, res, store) => {
   ];
   let saveSkipped = false;
   if (s.save !== null) {
-    const o = s.save.length <= MAX_SAVE ? parseJSON(s.save) : null;
-    if (o && typeof o === 'object' && o.G && typeof o.G === 'object') writes.push(store.set('sv:' + lname, s.save));
+    if (validateSave(s.save, s)) writes.push(store.set('sv:' + lname, s.save));
     else saveSkipped = true;
   }
   await Promise.all(writes);

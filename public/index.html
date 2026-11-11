@@ -355,7 +355,7 @@ function openChest(){
   tone(523,0.1,'square',0.05);tone(784,0.12,'square',0.05,0.08);tone(1047,0.2,'square',0.05,0.16);
   chest=null;chestT=Math.floor(rnd(4500,8000));dirty=true;
 }
-function newG(){return {coins:0,run:0,gems:0,asc:0,pearls:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,guard:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,af:0,bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},fused:0,chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
+function newG(){return {coins:0,run:0,gems:0,asc:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,guard:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,af:0,bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},fused:0,chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
 
 // ---------- STATE ----------
 var G=newG(),faces=[],hooks=[],parts=[],ftx=[],ambient=[],bubble=null;
@@ -376,7 +376,7 @@ var view='fish',baseScroll=0,baseMax=0,bdrag=null,selId=0,selHtml='',recent=[],s
 
 // ---------- ECONOMY ----------
 function faceInc(f){return RAR[f.rar].inc*MUT[f.mut].m*0.7*(1+0.35*(f.lvl-1));}
-function gMult(){return (1+0.04*G.pearls)*(1+0.12*G.up.val)*(1+0.1*G.gems)*(1+0.03*disc)*(1+0.05*achN())*Math.min(3,(G.bf.cash>0?2:1)*(wx&&wx.cash?wx.cash:1)*tideNow().cash);}
+function gMult(){return (1+0.12*G.up.val)*(1+0.1*G.gems)*(1+0.03*disc)*(1+0.05*achN())*Math.min(3,(G.bf.cash>0?2:1)*(wx&&wx.cash?wx.cash:1)*tideNow().cash);}
 function capN(){return 30+10*G.up.cap;}
 function slots(){return 1+G.up.crew;}
 function crewFm(f){return RAR[f.rar].fm*(1+0.12*(f.lvl-1))/5;}
@@ -405,15 +405,21 @@ function claimDaily(){
   tone(523,0.1,'square',0.05);tone(784,0.12,'square',0.05,0.08);tone(1047,0.2,'square',0.05,0.16);
   saveGame();dirty=true;hudTick();
 }
-function asGain(){return Math.floor(Math.cbrt(G.run/2e8));}
+// Ascending costs cash: the next ascension needs this much money in hand, and every ascension costs 3.4x the one before.
+function ascCost(){return 2e8*Math.pow(3.4,Math.min(MAX_ASC,G.asc|0));}
+function asGain(){return (G.asc|0)>=MAX_ASC?0:(G.coins>=ascCost()?1:0);}
 function crewList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].crew)l.push(faces[i]);return l;}
 function crewCasts(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].crew)s+=crewFm(faces[i]);return s;}
-// Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions: before GATE ascends they are virtually impossible, afterwards each ascend multiplies the odds.
-var GATE=3,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
-function weightsArr(){var a=[],i,lm=luckMul(),as=G.asc|0,rest=0,lk;
-  for(i=0;i<NR;i++)a.push(RAR[i].w*Math.pow(0.6,Math.max(0,i-2))*Math.pow(1+0.09*G.up.luck*i,0.62)*(i>=2?lm:1)*(i>=7&&i<13?1+0.6*as:1));
+// Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions (see ASC_REQ): below a rarity's ascension requirement it cannot be caught or fused at all, and each ascension past it multiplies the odds.
+var SEASON=2,MAX_ASC=20,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
+// Minimum ascensions needed before each rarity (by index) can be caught or fused. Keep in sync with ASC_REQ in lib/util.js: the server rejects stats and saves that break it.
+var ASC_REQ=[0,0,0,0,0,0,0,3,5,7,9,11,13,17,19,20,20];
+function maxRarFor(a){var m=0,i;for(i=0;i<ASC_REQ.length;i++)if(ASC_REQ[i]<=a)m=i;return m;}
+function unlockNote(){var s=[],i;for(i=7;i<NR;i++)s.push(RAR[i].n+' '+ASC_REQ[i]);return s.join(' &bull; ');}
+function weightsArr(){var a=[],i,lm=luckMul(),as=Math.min(MAX_ASC,G.asc|0),rest=0,lk;
+  for(i=0;i<NR;i++)a.push(as<ASC_REQ[i]?0:RAR[i].w*Math.pow(0.6,Math.max(0,i-2))*Math.pow(1+0.09*G.up.luck*i,0.62)*(i>=2?lm:1)*(i>=7&&i<13?1+0.6*as:1));
   for(i=0;i<13;i++)rest+=a[i];
-  for(i=13;i<NR;i++){lk=Math.min(2.5,Math.pow(1+0.09*G.up.luck*i,0.62)*lm);a[i]=as<GATE?rest*HI_P[i]*0.00002:rest*HI_P[i]*Math.min(80,Math.pow(2.4,as-GATE))*lk;}
+  for(i=13;i<NR;i++){lk=Math.min(2.5,Math.pow(1+0.09*G.up.luck*i,0.62)*lm);a[i]=as<ASC_REQ[i]?0:rest*HI_P[i]*(i>=15?80:Math.min(80,Math.pow(2.4,as-ASC_REQ[i]+3)))*lk;}
   return a;}
 function odds(){var a=weightsArr(),tot=0,i;for(i=0;i<NR;i++)tot+=a[i];return a.map(function(v){return v/tot*100;});}
 function rollRar(){var a=weightsArr(),tot=0,i;for(i=0;i<NR;i++)tot+=a[i];var r=Math.random()*tot;for(i=0;i<NR;i++){r-=a[i];if(r<=0)return i;}return 0;}
@@ -1481,31 +1487,31 @@ function bookHtml(){
   h+='</table><div class="odds">';
   var od=odds();
   for(r=0;r<NR;r++)h+=`<span style='color:${RAR[r].c}'>${hid(r)?'???':RAR[r].n} ${pct(od[r])}%</span>`;
-  return h+`</div><div class='note' style='margin-top:6px'>Mutation chance ${(mutChance()*100).toFixed(1)}% &bull; Shiny x2, Golden x4, Rainbow x10, Void x25</div><div class='note'>The deepest tiers (Quantum and beyond) only start biting after 3 ascensions, and every ascension makes them easier. You have ascended ${G.asc} time${G.asc===1?'':'s'}.</div>`;
+  return h+`</div><div class='note' style='margin-top:6px'>Mutation chance ${(mutChance()*100).toFixed(1)}% &bull; Shiny x2, Golden x4, Rainbow x10, Void x25</div><div class='note'>Rarities unlock with ascensions (max ${MAX_ASC}): ${unlockNote()}. You have ascended ${G.asc} time${G.asc===1?'':'s'}.</div>`;
 }
 function ascHtml(){
   var g=asGain();
-  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A full restart. Resets coins, gems, faces, upgrades, the Book, quests and achievements. Only your settings, ascension count and Pearls stay.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Income bonus from pearls: x${(1+0.04*G.pearls).toFixed(2)} now &rarr; x${(1+0.04*(G.pearls+g)).toFixed(2)} after this ascend. Next pearl at $${fmt(nextAscAt())}.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc}</b><small>Pearls: ${G.pearls} (+4% income each) &bull; Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Quantum, Abyssal and the secret top tier only appear after 3 ascensions, and each ascension makes rare catches much easier.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${g>=1?(ascArm?'Click again to restart':'Ascend +'+g+' pearls'):'Need $200M'}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
+  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A full restart. Resets coins, gems, faces, upgrades, the Book, quests and achievements. Only your settings and ascension count stay.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
 }
 function srow(a,b){return `<div class='srow'><span>${a}</span><b>${b}</b></div>`;}
-function nextAscAt(){return 2e8*Math.pow(asGain()+1,3);}
+function nextAscAt(){return ascCost();}
 function goalCard(ic,t,s,p){return `<div class='card shopc' style='--rc:#7dd3ff'><div class='ic'>${ic}</div><div class='info'><b>${t}</b><small>${s}</small>${p>=0?`<div class='bar'><i style='width:${clamp(p,0,1)*100}%'></i></div>`:''}</div></div>`;}
 function statsHtml(){
-  var pt=G.pt|0,i,a=null,k,bk=null,bc=Infinity,c,g=asGain(),nx=nextAscAt(),pv=2e8*Math.pow(g,3),bb=bestBook();
+  var pt=G.pt|0,i,a=null,k,bk=null,bc=Infinity,c,g=asGain(),nx=nextAscAt(),pv=0,bb=bestBook();
   var h=`<div class='sech'>&#127919; Next goals</div>`;
   for(i=0;i<ACH.length;i++)if(!G.ach[ACH[i].id]){a=ACH[i];break;}
   if(a)h+=goalCard(a.i,'Achievement: '+a.n,a.d+' (+5% cash)',-1);
   for(i=0;i<UK.length;i++){k=UK[i];if(G.up[k]>=UPS[k].max)continue;c=upCost(k);if(c<bc){bc=c;bk=k;}}
   if(bk)h+=goalCard(UPS[bk].i,'Cheapest upgrade: '+UPS[bk].n,'Level '+(G.up[bk]+1)+' costs $'+fmt(bc),G.coins/bc);
   h+=goalCard('&#128214;','Fill the Book',disc+'/'+NR*5+' entries discovered (+3% cash each)',disc/(NR*5));
-  h+=goalCard('&#127775;',g>=1?'You can ascend for +'+g+' pearls':'First ascension','$'+fmt(G.run)+' / $'+fmt(nx)+' this run',(G.run-pv)/(nx-pv));
+  h+=G.asc>=MAX_ASC?goalCard('&#127775;','Maximum ascension reached','Ascension '+MAX_ASC+' of '+MAX_ASC,1):goalCard('&#127775;',g>=1?'You can afford to ascend':'Next ascension','$'+fmt(G.coins)+' / $'+fmt(nx)+' cash',Math.min(1,G.coins/nx));
   h+=`<div class='sech'>&#128202; Lifetime stats</div>`;
   h+=srow('Play time',Math.floor(pt/3600)+'h '+Math.floor(pt%3600/60)+'m');
   h+=srow('Faces caught',fmt(G.caught));
   h+=srow('Earned, all runs','$'+fmt((G.lp||0)+G.run));
   h+=srow('Earned, this run','$'+fmt(G.run));
   h+=srow('Income','$'+fmt(curInc)+'/s');
-  h+=srow('Ascensions / Pearls',G.asc+' / '+(G.pearls||0));
+  h+=srow('Ascensions',G.asc+' / '+MAX_ASC);
   if(disc>0)h+=srow('Best rarity found',RAR[bb[0]].n);
   h+=srow('Faces fused',G.fused|0);
   h+=srow('Chests opened',G.chests|0);
@@ -1529,7 +1535,7 @@ function render(){
 // ---------- ACCOUNT / LEADERBOARD ----------
 // Online features talk to the /api functions of the Vercel deployment. When the server cannot be reached (offline file, preview) the game plays on and the Top tab says so.
 var AK='reelFacesAuth',acct={token:'',name:'',u:'',rank:0,total:0,msg:'',busy:false,subBusy:false,rows:null,lbT:0,lbBusy:false,offline:false,view:'peak',vtotal:0,vrank:0,feed:null,prof:null};
-function saveBlob(){G.ts=Date.now();return JSON.stringify({G:G,faces:faces.map(function(f){return [f.id,f.rar,f.mut,f.lvl,f.crew?1:0,f.lock?1:0,Math.floor(f.tot||0)];})});}
+function saveBlob(){G.ts=Date.now();return JSON.stringify({S:SEASON,G:G,faces:faces.map(function(f){return [f.id,f.rar,f.mut,f.lvl,f.crew?1:0,f.lock?1:0,Math.floor(f.tot||0)];})});}
 function acctLoad(){try{var s=JSON.parse(localStorage.getItem(AK)||'null');if(s&&s.token&&s.name){acct.token=s.token;acct.name=s.name;}}catch(_){}}
 function acctStore(){try{if(acct.token)localStorage.setItem(AK,JSON.stringify({token:acct.token,name:acct.name}));else localStorage.removeItem(AK);}catch(_){}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');}
@@ -1544,11 +1550,11 @@ function acctSubmit(manual){
   if(!acct.token||acct.subBusy)return;
   var bb=bestBook(),tf=faces.slice().sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;}).slice(0,6).map(function(f){return [f.rar,f.mut,f.lvl];});
   acct.subBusy=true;
-  api('api/submit',{coins:Math.min(1e21,Math.floor(G.coins)),inc:Math.min(1e20,curInc),asc:Math.min(9999,G.asc),caught:Math.min(1e9,G.caught),book:Math.min(80,disc),bestRar:bb[0],bestMut:bb[1],top:tf,cps:Math.round(crewList().reduce(function(s,f){return s+crewFm(f);},0)*100)/100,pearls:Math.min(1e9,G.pearls|0),save:saveBlob()}).then(function(r){
+  api('api/submit',{coins:Math.min(1e21,Math.floor(G.coins)),inc:Math.min(1e20,curInc),asc:Math.min(MAX_ASC,G.asc|0),season:SEASON,caught:Math.min(1e9,G.caught),book:Math.min(80,disc),bestRar:bb[0],bestMut:bb[1],top:tf,cps:Math.round(crewList().reduce(function(s,f){return s+crewFm(f);},0)*100)/100,save:saveBlob()}).then(function(r){
     acct.subBusy=false;
     if(r.code===401){signOut('Your session expired. Please sign in again.');return;}
     if(r.ok){acct.rank=r.j.rank||acct.rank;acct.total=r.j.total||acct.total;acct.offline=false;if(manual)acct.msg='Synced!';}
-    else if(r.code===422)acct.msg='Your latest numbers were not accepted by the server.';
+    else if(r.code===409)acct.msg=r.j.error||'The game was updated. Reload the page.';else if(r.code===422)acct.msg='Your latest numbers were not accepted by the server.';
     else if(manual)acct.msg=r.j.error||'Could not sync.';
     if(tab==='top')renderSafe();
   }).catch(function(){acct.subBusy=false;if(manual){acct.msg='Cannot reach the server.';if(tab==='top')renderSafe();}});
@@ -1633,7 +1639,7 @@ function profHtml(){
   else{
     x=p.p;
     h+=srow('Rank',p.rank?'#'+p.rank:'-')+srow('Peak money','$'+fmt(x.peak))+srow('Best income','$'+fmt(x.inc)+'/s')+srow('Ascensions',x.asc|0)+srow('Faces caught',fmt(x.caught))+srow('Book',(x.book|0)+'/'+NR*5)+srow('Best rarity ever',RAR[x.bestEver|0]?RAR[x.bestEver|0].n:'-')+srow('Last seen',ago(x.t))+srow('Playing since',x.created?new Date(x.created).toLocaleDateString():'-');
-    if(x.cps!=null)h+=srow('Casts per second',(+x.cps).toFixed(2));if(x.pearls!=null)h+=srow('Pearls',x.pearls|0);
+    if(x.cps!=null)h+=srow('Casts per second',(+x.cps).toFixed(2));
      h+=`<div class='sech'>Best catches</div><div class='lbf'>${faceChips(x.top)}</div>`;
   }
   return h+'</div>';
@@ -1679,7 +1685,7 @@ function topHtml(){
 function faceById(id){for(var i=0;i<faces.length;i++)if(faces[i].id===id)return faces[i];return null;}
 function fxPos(f){if(view!=='base')return f.crew?[f.cx,f.cy]:[W/2,y0+40];return [f.x,f.y];}
 function sellFace(f){var v=sellValue(f),p=fxPos(f);earn(v);floatText(p[0],p[1],'+$'+fmt(v),'#ffe36b',14);spark(p[0],p[1],'#ffd23f',8,2,0,0.05);removeFace(f);tone(700,0.1,'square',0.04);}
-function fuse(r,q){if(r>=ULTRA-1)return;if(r+1>=13&&(G.asc|0)<GATE){if(!q)toast('Ascend '+GATE+' times to fuse into Quantum and above');return;}
+function fuse(r,q){if(r>=ULTRA-1)return;if((G.asc|0)<ASC_REQ[r+1]){if(!q)toast('Ascend '+ASC_REQ[r+1]+' times to fuse into '+RAR[r+1].n);return;}
   var c=faces.filter(function(f){return f.rar===r&&!f.crew&&!f.lock;}).sort(function(a,b){return a.mut-b.mut||a.lvl-b.lvl;}).slice(0,3);
   if(c.length<3)return;
   var m=Math.max(c[0].mut,c[1].mut,c[2].mut),i;
@@ -1704,7 +1710,7 @@ function autoCrew(){
 }
 function autoFuse(){var r,n=0,c,i;
   for(r=0;r<ULTRA-1;r++){
-    if(r+1>=13&&(G.asc|0)<GATE)break;
+    if((G.asc|0)<ASC_REQ[r+1])break;
     while(n<8){c=0;for(i=0;i<faces.length;i++)if(faces[i].rar===r&&!faces[i].crew&&!faces[i].lock)c++;if(c<3)break;fuse(r,true);n++;}
   }
   if(n)toast('Auto-fused '+n+' time'+(n>1?'s':''));
@@ -1712,9 +1718,9 @@ function autoFuse(){var r,n=0,c,i;
 var ascArm=false;
 // Ascending is a full restart: coins, gems, faces, upgrades, Book, quests and achievements all reset. Only the ascension count, the sound setting and Performance mode survive.
 function ascend(){
-  if(asGain()<1)return;
-  var o=G,n=newG(),pg=asGain();
-  n.asc=o.asc+1;n.pearls=(o.pearls||0)+pg;n.mute=o.mute;n.perf=o.perf;n.af=o.af;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
+  if((G.asc|0)>=MAX_ASC){toast('You have reached the maximum ascension ('+MAX_ASC+').');return;}if(asGain()<1)return;
+  var o=G,n=newG();
+  n.asc=o.asc+1;n.mute=o.mute;n.perf=o.perf;n.af=o.af;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
   G=n;faces=[];hooks=[];frenzy=0;autoAcc=0;bubble=null;chest=null;combo=0;wx=null;wxT=7200;chestT=5400;setTide(0,2400);recent=[];sinkers=[];ultraAnim=null;nbAnim=null;ascArm=false;
   stage.classList.remove('ult');hintEl.style.display='';recount();ensureQuests();
   banner('ASCENDED!','Ascension #'+G.asc+' - a fresh start','#ffe36b',true);flash=0.8;
@@ -1779,7 +1785,7 @@ var TUT=[
 {t:'Put a face on the crew',d:'Open the Faces tab (key 1) and press the rod button on a face. Crew faces stand on the dock and fish for you.',tab:'faces',ok:function(){return crewList().length>=1;}},
 {t:'Level, sell and fuse',d:'In the Faces tab you can level a face up, sell extras, or fuse 3 faces of the same rarity into one better face. Lock a face to protect it from selling.',tab:'faces'},
 {t:'Rarities and NEW BEST',d:'Faces come in 16 rarities, from Common up to a secret top tier. Whenever you catch a rarity higher than any you have found before, a NEW BEST celebration plays, and the higher it is, the bigger the show.',tab:'book'},
-{t:'Quests, Book and Ascend',d:'Quests (4) pay cash. The Book (5) tracks every rarity and mutation. Stats (6) shows your next goals. At $200M earned, Ascend (7) restarts the run for permanent Pearls. Press B to visit your Base. Have fun!'}
+{t:'Quests, Book and Ascend',d:'Quests (4) pay cash. The Book (5) tracks every rarity and mutation. Stats (6) shows your next goals. Ascend (7) costs a lot of cash and restarts everything, but unlocks the rarest faces. Press B to visit your Base. Have fun!'}
 ];
 function tutHl(name){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].classList.toggle('hl',!!name&&tb[i].dataset.tab===name);}
 function tutTick(){
@@ -1892,7 +1898,7 @@ function devFull(lvl){var r,m,c=0;devCap(NR*5);for(r=NR-1;r>=0;r--)for(m=4;m>=0;
 function devFill(lvl){var i=0,c=0;while(faces.length<capN()&&i<1000){devAdd(NR-1-(i%NR),Math.floor(i/NR)%5,lvl);i++;c++;}recount();return c;}
 function devLevelAll(){faces.forEach(function(f){f.lvl=MAXLV;});}
 var DACT={
-  max:function(){devCoins(1e21,true);G.gems=Math.max(G.gems,1000);G.pearls=Math.max(G.pearls||0,1000);devUps();devBaits();devAch();devFull(MAXLV);devFill(MAXLV);devBook();devLevelAll();autoCrew();return 'Everything maxed ('+faces.length+' faces)';},
+  max:function(){devCoins(1e21,true);G.gems=Math.max(G.gems,1000);devUps();devBaits();devAch();devFull(MAXLV);devFill(MAXLV);devBook();devLevelAll();autoCrew();return 'Everything maxed ('+faces.length+' faces)';},
   book:function(){devBook();return 'Book complete (all 80)';},
   each:function(){var r,c=0;devCap(NR);for(r=NR-1;r>=0;r--){if(faces.length>=capN())break;devAdd(r,0,1);c++;}recount();return c+' faces added';},
   full:function(){return devFull(1)+' faces added';},
@@ -1904,7 +1910,7 @@ var DACT={
   c1t:function(){devCoins(1e12);return '+$1T';},
   cmax:function(){devCoins(1e21,true);return 'Coins maxed';},
   gems:function(){G.gems+=100;return '+100 gems';},
-  pearls:function(){G.pearls=(G.pearls||0)+100;return '+100 pearls';},
+  
   ups:function(){devUps();return 'All upgrades maxed';},
   chest:function(){chest={x:W/2,y:y0+30,vx:0,life:600,ph:0};return 'Chest spawned';},
   frenzy:function(){frenzy=1800;return 'Frenzy on';},
@@ -1923,7 +1929,7 @@ function devMenu(){
     +devB('max','&#9889; MAX EVERYTHING','gold big')
     +`<div class='sech'>Faces</div><div class='dg'>`+devB('book','Fill the Book (80)')+devB('each','1 of each rarity')+devB('full','Full set (80 faces)')+devB('lvl','Max level all faces')+devB('crew','Auto-crew best')+`</div>`
     +`<div class='row'><select class='acf' id='dpr'>${o}</select><select class='acf' id='dpm'>${mo}</select>${devB('spawn','Spawn','green')}</div>`
-    +`<div class='sech'>Economy</div><div class='dg'>`+devB('c1m','+$1M')+devB('c1b','+$1B')+devB('c1t','+$1T')+devB('cmax','Max coins')+devB('gems','+100 gems')+devB('pearls','+100 pearls')+devB('ups','Max all upgrades')+`</div>`
+    +`<div class='sech'>Economy</div><div class='dg'>`+devB('c1m','+$1M')+devB('c1b','+$1B')+devB('c1t','+$1T')+devB('cmax','Max coins')+devB('gems','+100 gems')+devB('ups','Max all upgrades')+`</div>`
     +`<div class='sech'>Events and world</div><div class='dg'>`+devB('wx0','Rainfall')+devB('wx1','Aurora')+devB('wx2','Golden Hour')+devB('chest','Spawn chest')+devB('frenzy','Frenzy 30s')+devB('baits','All baits 10m')+devB('quests','Finish quests')+devB('daily','Reset daily')+devB('ultra','ULTRA show')+`</div>`
     +`<div class='sech'>Save and access</div><div class='dg'>`+devB('restore',devArm==='restore'?'Tap again to confirm':'Restore my real save','red')+devB('lock','Lock panel')+`</div>`
     +`<div class='sech'>Server admin</div><div class='note'>Needs the server ADMIN_PASSWORD. It is only used for the request and never saved.</div><div class='row'><input class='acf' id='dau' maxlength='16' placeholder='Player' value='${devAU}' autocomplete='off' autocapitalize='off' spellcheck='false'><input class='acf' id='dap' type='password' maxlength='128' placeholder='Admin password' autocomplete='off'></div><div class='dg'>`+devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')+devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+`</div>`;
@@ -2026,17 +2032,19 @@ function loadGame(){
   try{
     var s=localStorage.getItem(KEY);if(!s)return;
     var o=JSON.parse(s),g=o.G,d=newG(),k;
-    ['coins','run','gems','asc','pearls','nid','caught','ts','mute','perf','af','as','qn','fused','chests','qdone','dl','ds','buy','pt','lp','tut','dt'].forEach(function(key){if(typeof g[key]==='number'&&isFinite(g[key]))d[key]=g[key];});
+    // Saves from before the season reset (or without a season) are discarded: the game starts fresh.
+    if(!g||o.S!==SEASON){try{localStorage.removeItem(KEY);}catch(_){}return;}
+    ['coins','run','gems','asc','nid','caught','ts','mute','perf','af','as','qn','fused','chests','qdone','dl','ds','buy','pt','lp','tut','dt'].forEach(function(key){if(typeof g[key]==='number'&&isFinite(g[key]))d[key]=g[key];});
     for(k in d.up)if(g.up&&typeof g.up[k]==='number')d.up[k]=clamp(g.up[k],0,UPS[k].max);
-    d.as=clamp(d.as|0,-1,3);d.perf=clamp(d.perf|0,0,2);d.af=d.af?1:0;if(d.buy!==10&&d.buy!==0)d.buy=1;
+    d.asc=clamp(d.asc|0,0,MAX_ASC);d.coins=clamp(d.coins,0,1e21);d.run=clamp(d.run,0,1e21);d.lp=clamp(d.lp,0,1e24);d.gems=clamp(d.gems,0,1e9);d.caught=clamp(d.caught,0,1e9);d.as=clamp(d.as|0,-1,3);d.perf=clamp(d.perf|0,0,2);d.af=d.af?1:0;if(d.buy!==10&&d.buy!==0)d.buy=1;
     if(typeof g.tut!=='number'&&d.caught>0)d.tut=99;
     if(g.bf)['luck','mut','cash'].forEach(function(bk){if(typeof g.bf[bk]==='number'&&isFinite(g.bf[bk]))d.bf[bk]=clamp(g.bf[bk],0,600);});
     if(g.ach)for(k in g.ach)if(g.ach[k]===1)d.ach[k]=1;
     if(Array.isArray(g.q))g.q.forEach(function(q){if(q&&QTK[q.k]&&isFinite(q.goal)&&isFinite(q.prog)&&q.goal>0&&d.q.length<3)d.q.push({k:q.k,goal:q.goal,prog:Math.max(0,q.prog),rc:+q.rc||100,rg:q.rg?1:0});});
-    if(g.book)for(k in g.book)if(/^(?:[0-9]|1[0-5])_[0-4]$/.test(k)&&typeof g.book[k]==='number')d.book[k]=g.book[k];
+    if(g.book)for(k in g.book)if(/^(?:[0-9]|1[0-6])_[0-4]$/.test(k)&&parseInt(k,10)<=maxRarFor(d.asc)&&typeof g.book[k]==='number')d.book[k]=g.book[k];
     G=d;recount();faces=[];
     (o.faces||[]).forEach(function(a){
-      if(!Array.isArray(a)||a[1]<0||a[1]>=NR||a[2]<0||a[2]>4)return;
+      if(!Array.isArray(a)||a[1]<0||a[1]>=NR||a[1]>maxRarFor(d.asc)||a[2]<0||a[2]>4)return;
       var f=makeFace(a[1],a[2],clamp(a[3]|0,1,MAXLV));f.id=a[0];f.lock=!!a[5];f.tot=+a[6]||0;
       if(a[4]&&crewList().length<slots())f.crew=true;else placeInWater(f);
       faces.push(f);
@@ -2063,7 +2071,7 @@ $('snd').innerHTML=G.mute?'&#128263;':'&#128266;';
 render();hudTick();
 (function(){
   var el=document.createElement('div'),i,b,t0=Date.now(),sh=0,ti=0,fin=false,ims=[img];
-  var tips=['Click the water or press Space to cast a line and catch faces.','Three faces of the same rarity can be fused into one of the next rarity.','Higher rarities earn far more money per second. Keep your best ones!','Put faces in your crew so they cast lines for you.','Ascending resets your run but gives Pearls and makes the rarest tiers easier.','Rainbow and Void faces are rare variants that earn much more.'];
+  var tips=['Click the water or press Space to cast a line and catch faces.','Three faces of the same rarity can be fused into one of the next rarity.','Higher rarities earn far more money per second. Keep your best ones!','Put faces in your crew so they cast lines for you.','Ascending costs a lot of cash and resets your run, but it unlocks the rarest tiers.','Rainbow and Void faces are rare variants that earn much more.'];
   var msgs=['Waking the fish...','Baiting the hooks...','Polishing the scales...','Counting your coins...','Almost there...'];
   el.id='load';
   el.innerHTML="<div class='lgo'><svg viewBox='0 0 64 40' width='1.6em' height='1em' aria-hidden='true'><path d='M4 20C14 6 34 4 46 20 34 36 14 34 4 20Z' fill='#4aa8ff' stroke='#12063a' stroke-width='3' stroke-linejoin='round'/><path d='M44 20 60 8v24Z' fill='#ffe36b' stroke='#12063a' stroke-width='3' stroke-linejoin='round'/><circle cx='16' cy='17' r='3.5' fill='#fff'/><circle cx='15' cy='17' r='1.6' fill='#12063a'/></svg></div><h1 class='nm nm15'>Lachy Fish</h1><div class='bar'><i id='lbar'></i></div><div id='lmsg'>"+msgs[0]+"</div><small id='ltip'>"+tips[0]+"</small>";

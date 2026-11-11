@@ -6,7 +6,7 @@ const VIEWS = ['peak', 'inc', 'asc', 'book'];
 function pub(p) {
   return {
     name: p.name, peak: p.peak, inc: p.inc, asc: p.asc, caught: p.caught, book: p.book,
-    bestEver: p.bestEver, bestMut: p.bestMut, top: p.top, cps: p.cps, pearls: p.pearls, created: p.created, t: p.t,
+    bestEver: p.bestEver, bestMut: p.bestMut, top: p.top, cps: p.cps, created: p.created, t: p.t,
   };
 }
 

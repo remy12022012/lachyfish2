@@ -4,7 +4,11 @@
 const crypto = require('crypto');
 const { NAME_RE, send, readBody, handler, clientIp, allow } = require('../lib/util');
 
-const ACTIONS = ['kick', 'ban', 'unban', 'reset'];
+const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'wipeall'];
+// wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed. It cannot be undone,
+// so it needs the admin password and the exact confirmation phrase. Rate-limit counters (rl:*) are left alone.
+const WIPE_PHRASE = 'DELETE ALL ACCOUNTS';
+const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'lb:'];
 const BOARDS = ['lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
 const digest = (s) => crypto.createHash('sha256').update(String(s)).digest();
 
@@ -12,6 +16,23 @@ function passwordOk(given) {
   const want = process.env.ADMIN_PASSWORD;
   if (!want || typeof given !== 'string' || !given) return false;
   return crypto.timingSafeEqual(digest(given), digest(want)); // equal-length digests: constant time
+}
+
+// Deletes in batches and stops after ~7 s (the function limit is 10 s); the response says done:false until nothing is left, so just call it again.
+async function wipeAll(store) {
+  const deadline = Date.now() + 7000;
+  let deleted = 0;
+  for (const prefix of WIPE_PREFIXES) {
+    for (;;) {
+      const keys = await store.keys(prefix, 500);
+      if (!keys.length) break;
+      await store.delMany(keys);
+      deleted += keys.length;
+      if (Date.now() > deadline) return { ok: true, action: 'wipeall', done: false, deleted };
+    }
+  }
+  await store.del('feed');
+  return { ok: true, action: 'wipeall', done: true, deleted };
 }
 
 module.exports = handler(['POST'], async (req, res, store) => {
@@ -28,6 +49,10 @@ module.exports = handler(['POST'], async (req, res, store) => {
   }
 
   const action = b.action;
+  if (action === 'wipeall') {
+    if (b.confirm !== WIPE_PHRASE) return send(res, 422, { error: 'To delete every account, also send confirm: "' + WIPE_PHRASE + '".' });
+    return send(res, 200, await wipeAll(store));
+  }
   const name = typeof b.username === 'string' ? b.username.trim() : '';
   if (!ACTIONS.includes(action) || !NAME_RE.test(name)) return send(res, 422, { error: 'Invalid request.' });
   const lname = name.toLowerCase();

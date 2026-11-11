@@ -21,15 +21,23 @@ Then open the game, go to the **Top** tab, sign up, and your account appears on 
 | `POST /api/submit` | The game syncs money, income, ascensions, book, best faces and the cloud save (every 30 s while signed in, or **Sync now**). |
 | `GET /api/leaderboard?view=peak\|inc\|asc\|book` | Top 50 for each board, your rank, and the activity feed. |
 | `GET /api/leaderboard?u=NAME` | A player's profile. |
-| `POST /api/admin` | Admin only. Body `{password, action, username}` where action is `kick` (ends every existing session; the player can sign in again), `ban` (blocks sessions and login, removes them from the boards), `unban`, or `reset` (deletes stats and cloud save, keeps the account, removes them from the boards). The password must match `ADMIN_PASSWORD`; wrong passwords are limited to 5 per 15 minutes per IP. |
+| `POST /api/admin` | Admin only. Body `{password, action, username}` where action is `kick` (ends every existing session; the player can sign in again), `ban` (blocks sessions and login, removes them from the boards), `unban`, or `reset` (deletes stats and cloud save, keeps the account, removes them from the boards), or `wipeall` (no username; also needs `confirm: "DELETE ALL ACCOUNTS"`; deletes EVERY account, cloud save, session, ban, leaderboard and the activity feed, and cannot be undone; it works in batches, so if it answers `done: false` just send it again until it says `done: true`). The password must match `ADMIN_PASSWORD`; wrong passwords are limited to 5 per 15 minutes per IP. |
 
-Protections: strict input validation (invalid numbers are rejected with 422), peak money and ascensions can never go down, ascension jumps are capped, one sync per 5 s per player, login and signup rate limits, constant-time password checks, identical errors for unknown user and wrong password, usernames limited to letters, numbers and `_ . -` (3 to 16 characters). The game runs in the player's browser, so a determined cheater can still fake numbers; the limits stop casual abuse, not a skilled attacker.
+Protections: strict input validation (invalid numbers are rejected with 422), peak money and ascensions can never go down, ascensions are capped at 20 and can rise by at most 2 per sync (a new account counts as 0), stats or cloud saves that contain a rarity the ascension count has not unlocked are rejected, requests from an old season are refused with 409, one sync per 5 s per player, login and signup rate limits, constant-time password checks, identical errors for unknown user and wrong password, usernames limited to letters, numbers and `_ . -` (3 to 16 characters). The game runs in the player's browser, so a determined cheater can still fake numbers; the limits stop casual abuse, not a skilled attacker.
 
 If the database is missing on Vercel, the API answers 503 with a clear message instead of silently losing data, and the game keeps working offline with its normal local saves.
 
 ### Admin from the game
 
 Tap the small rock in the bottom-left corner of the seabed 5 times quickly (or tap the coin counter 7 times, or press the backtick key 3 times) to open the hidden dev panel. Its **Server admin** section sends kick, ban, unban and reset requests. You type the admin password each time; it is kept in memory only for that request. The panel's client-only cheats are separate, run locally, and switch on a test mode that blocks leaderboard and cloud sync for that device.
+
+## Ascensions and seasons
+
+* **Maximum ascension is 20.** The server rejects more, and the game stops offering Ascend at 20.
+* **Ascending costs cash.** The next ascension needs `2e8 * 3.4^n` coins in hand (n = ascensions so far, so $200M, then $680M, and so on up to about $2.4 quintillion for the 20th). The run is wiped on ascending, so the money is spent. There are no Pearls any more. The server also requires 10 real minutes per ascension gained (counted from account creation or the last ascension, `MIN_ASC_MS` in `lib/util.js`), so a tampered client cannot claim a pile of ascensions at once.
+* **Every high rarity has its own ascension requirement** (`ASC_REQ` in `lib/util.js` and `public/index.html`; keep the two in sync). Below its requirement a rarity has zero chance and cannot be fused into: Exotic 3, Celestial 5, Cosmic 7, Eternal 9, Omega 11, Nebula 13, **Quantum 17, Abyssal 19, ULTRA 20, Limited Edition 20**. Quantum and Abyssal ramp up over the ascensions after they unlock; ULTRA and the Limited Edition only unlock at the maximum, so they only ever drop at ascension 20.
+* **Seasons.** `SEASON` (in `lib/util.js` and `public/index.html`) is stamped into every save and every sync. A browser save from another season is discarded on load (the player starts fresh) and the server answers 409 to an old cached copy of the game, so exploited saves and old tabs cannot sync back after a reset. Bump `SEASON` whenever you reset progress again.
+* **Resetting everyone:** deploy, then call `wipeall` (see the admin table above), for example `curl -X POST https://YOUR-SITE/api/admin -d '{"password":"...","action":"wipeall","confirm":"DELETE ALL ACCOUNTS"}'`.
 
 ## Local development
 
