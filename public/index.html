@@ -273,6 +273,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 <button class='tab on' data-tab='faces'>&#128031;<br>Faces</button>
 <button class='tab' data-tab='shop'>&#128722;<br>Shop</button>
 <button class='tab' data-tab='crew'>&#127907;<br>Crew</button>
+<button class='tab' data-tab='farm'>&#127806;<br>Farm</button>
 <button class='tab' data-tab='quests'>&#127919;<br>Quests</button>
 <button class='tab' data-tab='book'>&#128214;<br>Book</button>
 <button class='tab' data-tab='stats'>&#128202;<br>Stats</button>
@@ -349,11 +350,15 @@ val:{n:'Golden Scales',i:'&#128176;',col:'#ffb300',d:'+12% cash per second per l
 multi:{n:'Double Hook',i:'&#9996;',col:'#4aa8ff',d:'Chance to land two faces at once.',b:700,g:2.4,max:25,eff:function(){return 'Double catch: '+Math.min(100,4*G.up.multi)+'%';}},
 crew:{n:'Crew Slots',i:'&#128101;',col:'#c66bff',d:'+1 face fisher on the dock.',b:900,g:3.2,max:11,eff:function(){return 'Crew slots: '+slots();}},
 cap:{n:'Bigger Base',i:'&#127754;',col:'#5ef0ff',d:'+10 faces fit in the base.',b:500,g:2.5,max:10,eff:function(){return 'Base capacity: '+capN();}},
-guard:{n:'Dock Guard',i:'&#128737;',col:'#ff8a8a',d:'Pirates steal less of your coins.',b:800,g:2.3,max:10,eff:function(){return 'Pirate loss: '+(Math.max(3,15-1.2*G.up.guard)).toFixed(1)+'% of coins';}}};
+guard:{n:'Dock Guard',i:'&#128737;',col:'#ff8a8a',d:'Pirates steal less of your coins.',b:800,g:2.3,max:10,eff:function(){return 'Pirate loss: '+(Math.max(3,15-1.2*G.up.guard)).toFixed(1)+'% of coins';}},
+farm:{n:'Farm Plots',i:'&#127806;',col:'#8bdc4a',d:'+1 face farmer on the Farm.',b:600,g:3,max:11,eff:function(){return 'Farm slots: '+farmSlots();}},
+soil:{n:'Rich Soil',i:'&#127793;',col:'#6fcf5a',d:'+20% Food per level.',b:350,g:2.3,max:40,eff:function(){return 'Food x'+soilMult().toFixed(2);}},
+feed:{n:'Cheap Feed',i:'&#129364;',col:'#ffb86b',d:'-3% Food cost of level-ups per level.',b:500,g:2.4,max:25,eff:function(){return 'Level-up cost: '+Math.round(feedMult()*100)+'%';}}};
 var UK=['auto','quick','luck','mut','val','multi','crew','cap','guard'];
+var FUK=['farm','soil','feed'];
 var BAITS={luck:{n:'Lucky Bait',i:'&#127843;',col:'#5cf27a',d:'Boosts Rare+ odds for 60s (diminishing returns)',b:400,m:80},mut:{n:'Mutation Bait',i:'&#128302;',col:'#ff5ac8',d:'+25% mutation chance for 60s',b:500,m:90},cash:{n:'Golden Bait',i:'&#128176;',col:'#ffd23f',d:'Cash x2 for 60s',b:600,m:110}};
 var WX=[{n:'Rainfall',i:'&#9748;',col:'#7dd3ff',d:'Mutations x2.5',mut:2.5},{n:'Aurora',i:'&#127756;',col:'#c66bff',d:'Rare+ luck boost',luck:2},{n:'Golden Hour',i:'&#9728;',col:'#ffd23f',d:'Cash x2',cash:2}];
-var QT=[{k:'catch',t:'Catch %n faces',b:[20,40,80]},{k:'rare',t:'Catch %n Rare+ faces',b:[5,10,20]},{k:'epic',t:'Catch %n Epic+ faces',b:[1,2,4]},{k:'mut',t:'Catch %n mutated faces',b:[2,4,8]},{k:'fuse',t:'Fuse faces %n times',b:[1,2,3]},{k:'pop',t:'Pop %n bonus bubbles or chests',b:[1,2,3]},{k:'earn',t:'Earn %n',b:null}],QTK={};
+var QT=[{k:'catch',t:'Catch %n faces',b:[20,40,80]},{k:'rare',t:'Catch %n Rare+ faces',b:[5,10,20]},{k:'epic',t:'Catch %n Epic+ faces',b:[1,2,4]},{k:'mut',t:'Catch %n mutated faces',b:[2,4,8]},{k:'pop',t:'Pop %n bonus bubbles or chests',b:[1,2,3]},{k:'earn',t:'Earn %n',b:null}],QTK={};
 QT.forEach(function(q){QTK[q.k]=q;});
 function hasR(r){for(var k in G.book)if(parseInt(k,10)===r)return true;return false;}
 function hasM(m){for(var k in G.book)if(+k.split('_')[1]===m)return true;return false;}
@@ -381,7 +386,6 @@ var ACH=[
 {id:'bkall',i:'&#127775;',n:'Completionist',d:'Discover every Book entry',f:function(){return disc>=NR*5;}},
 {id:'asc1',i:'&#127775;',n:'Reborn',d:'Ascend once',f:function(){return G.asc>=1;}},
 {id:'asc5',i:'&#10024;',n:'Reborn x5',d:'Ascend 5 times',f:function(){return G.asc>=5;}},
-{id:'fuse10',i:'&#9879;',n:'Fusion Master',d:'Fuse faces 10 times',f:function(){return G.fused>=10;}},
 {id:'chest5',i:'&#127873;',n:'Treasure Hunter',d:'Open 5 chests',f:function(){return G.chests>=5;}},
 {id:'q10',i:'&#127919;',n:'Quest Runner',d:'Complete 10 quests',f:function(){return G.qdone>=10;}},
 {id:'rich',i:'&#128176;',n:'Millionaire',d:'Earn $1M in one run',f:function(){return G.run>=1e6;}},
@@ -401,7 +405,7 @@ function genQuest(){
   var used={},i;for(i=0;i<G.q.length;i++)used[G.q[i].k]=1;
   var pool=QT.filter(function(x){return !used[x.k];});
   var tp=pool[Math.floor(Math.random()*pool.length)]||QT[0],tier=Math.floor(Math.random()*3),goal,sc=1+Math.min(3,G.asc*0.25);
-  if(tp.b)goal=Math.ceil(tp.b[tier]*(tp.k==='fuse'||tp.k==='pop'||tp.k==='epic'?1:sc));
+  if(tp.b)goal=Math.ceil(tp.b[tier]*(tp.k==='pop'||tp.k==='epic'?1:sc));
   else goal=Math.ceil(Math.max(800,curInc*(60+tier*60)));
   var rc=Math.ceil(Math.max(250,curInc*(40+tier*40))+tier*200*sc);
   return {k:tp.k,goal:goal,prog:0,rc:rc,rg:tier===2&&Math.random()<0.5?1:0};
@@ -434,7 +438,7 @@ function openChest(){
   tone(523,0.1,'square',0.05);tone(784,0.12,'square',0.05,0.08);tone(1047,0.2,'square',0.05,0.16);
   chest=null;chestT=Math.floor(rnd(4500,8000));dirty=true;
 }
-function newG(){return {coins:0,run:0,gems:0,asc:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,guard:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,af:0,bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},fused:0,chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
+function newG(){return {coins:0,run:0,food:0,ucv:1,gems:0,asc:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,guard:0,farm:0,soil:0,feed:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
 
 // ---------- STATE ----------
 var G=newG(),faces=[],hooks=[],parts=[],ftx=[],ambient=[],bubble=null;
@@ -462,11 +466,12 @@ function crewFm(f){return RAR[f.rar].fm*(1+0.12*(f.lvl-1))/5;}
 function autoRate(){return 0.22*G.up.auto;}
 function clickCd(){return Math.max(0.1,0.45*Math.pow(0.88,G.up.quick))/(frenzy>0?3:1);}
 function mutChance(){return Math.min(0.85,(0.03+0.015*G.up.mut)*Math.min(3.5,(wx&&wx.mut?wx.mut:1)*tideNow().mut)+(G.bf.mut>0?0.25:0));}
-function lvlCost(f){return Math.ceil(RAR[f.rar].sell*0.6*Math.pow(2.1,f.lvl-1));}
+// Level-ups cost Food: about a minute of one same-rarity farmer at level 1, growing 1.4x per level, cut by Cheap Feed.
+function lvlCost(f){return Math.max(1,Math.ceil(RAR[f.rar].fm*6*Math.pow(1.4,f.lvl-1)*feedMult()));}
 function sellValue(f){return Math.ceil(RAR[f.rar].sell*MUT[f.mut].m*(1+0.4*(f.lvl-1)));}
 function upCost(k){return Math.ceil(UPS[k].b*Math.pow(UPS[k].g,G.up[k]));}
 // Bulk buying: G.buy is 1, 10 or 0 (MAX = as many levels as you can afford, but always at least one so the price is shown).
-function upPlan(k){var l=G.up[k],mx=UPS[k].max,want=G.buy===10?10:G.buy===0?999:1,n=0,c=0,nx;
+function upPlan(k){var l=G.up[k],mx=upMax(k),want=G.buy===10?10:G.buy===0?999:1,n=0,c=0,nx;
   while(n<want&&l+n<mx){nx=Math.ceil(UPS[k].b*Math.pow(UPS[k].g,l+n));if(G.buy===0&&n>=1&&c+nx>G.coins)break;c+=nx;n++;}
   return {n:n,c:c};}
 function dayNum(){var d=new Date();return Math.floor((d.getTime()-d.getTimezoneOffset()*60000)/86400000);}
@@ -489,10 +494,20 @@ function ascCost(){return 2e8*Math.pow(3,Math.min(MAX_ASC,G.asc|0));}
 function asGain(){return (G.asc|0)>=MAX_ASC?0:(G.coins>=ascCost()?1:0);}
 function crewList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].crew)l.push(faces[i]);return l;}
 function crewCasts(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].crew)s+=crewFm(faces[i]);return s;}
-// Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions (see ASC_REQ): below a rarity's ascension requirement it cannot be caught or fused at all, and each ascension past it multiplies the odds.
+// Farm: faces placed on the Farm grow Food instead of fishing. Food is the only currency that pays for face level-ups.
+var FOOD_MAX=1e12,foodInc=0,UP_FULL_ASC=10;
+function farmSlots(){return 1+G.up.farm;}
+function soilMult(){return 1+0.2*G.up.soil;}
+function feedMult(){return Math.max(0.25,1-0.03*G.up.feed);}
+function farmFm(f){return RAR[f.rar].fm*(1+0.12*(f.lvl-1))/10*soilMult();}
+function farmList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].farm)l.push(faces[i]);return l;}
+function farmRate(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].farm)s+=farmFm(faces[i]);return s;}
+// Every upgrade has a final max (UPS[k].max). Its cap starts at 40% of that and rises with each ascension until it reaches the final max at ascension UP_FULL_ASC. Keep in sync with upCap in lib/cheat.js.
+function upMax(k,a){var u=UPS[k],s=Math.max(1,Math.ceil(u.max*0.4)),n=Math.max(0,Math.min(UP_FULL_ASC,(a===undefined?G.asc:a)|0));return Math.min(u.max,s+Math.ceil((u.max-s)*n/UP_FULL_ASC));}
+// Quantum (13), Abyssal (14) Ultra (15) and Limited Edition (16) are gated behind ascensions (see ASC_REQ): below a rarity's ascension requirement it cannot be caught at all, and each ascension past it multiplies the odds.
 var BUILD='__BUILD_ID__',BUILD_OK=BUILD.indexOf('__')!==0; // the build step stamps the real id into the page; an unstamped page never claims to be outdated
 var SEASON=3,MAX_ASC=20,HI_P={13:1/45000,14:1/120000,15:1/800000,16:1/4000000};
-// Minimum ascensions needed before each rarity (by index) can be caught or fused. Keep in sync with ASC_REQ in lib/util.js: the server rejects stats and saves that break it.
+// Minimum ascensions needed before each rarity (by index) can be caught. Keep in sync with ASC_REQ in lib/util.js: the server rejects stats and saves that break it.
 var ASC_REQ=[0,0,0,0,0,0,0,3,5,7,9,11,13,17,19,20,20];
 function maxRarFor(a){var m=0,i;for(i=0;i<ASC_REQ.length;i++)if(ASC_REQ[i]<=a)m=i;return m;}
 function unlockNote(){var s=[],i;for(i=7;i<NR;i++)s.push(RAR[i].n+' '+ASC_REQ[i]);return s.join(' &bull; ');}
@@ -562,7 +577,7 @@ function sfxCatch(r){for(var i=0;i<=Math.min(r,10);i++)tone(330*Math.pow(1.22,i)
 
 // ---------- FACES ----------
 function makeFace(r,m,l){
-  return {id:G.nid++,tot:0,rar:r,mut:m,lvl:l||1,crew:false,lock:false,x:0,y:0,vx:0,vy:0,rot:0,vr:0,sq:0,fl:false,air:false,ph:rnd(0,6.28),sz:rnd(0.92,1.08),tx:0,ty:0,tt:0,sp:rnd(0.35,0.8),acc:0,tm:rnd(60,300),cacc:rnd(0,0.8),cast:0,cx:0,cy:0,cw:30,ch:40,bx:0,by:0,rx:0,ry:0};
+  return {id:G.nid++,tot:0,rar:r,mut:m,lvl:l||1,crew:false,farm:false,lock:false,x:0,y:0,vx:0,vy:0,rot:0,vr:0,sq:0,fl:false,air:false,ph:rnd(0,6.28),sz:rnd(0.92,1.08),tx:0,ty:0,tt:0,sp:rnd(0.35,0.8),acc:0,tm:rnd(60,300),cacc:rnd(0,0.8),cast:0,cx:0,cy:0,cw:30,ch:40,bx:0,by:0,rx:0,ry:0};
 }
 function dims(f){var r=RAR[f.rar];return [HB*0.744*r.sx*f.sz,HB*r.sy*f.sz];}
 function bounds(f){
@@ -764,7 +779,7 @@ function step(){
     }else moveFace(f);
     if(f.sq>0.001||f.sq<-0.001)f.sq*=0.94;
   }
-  curInc=inc;G.coins+=inc/60;G.run+=inc/60;
+  curInc=inc;G.coins+=inc/60;G.run+=inc/60;foodInc=farmRate();G.food=Math.min(FOOD_MAX,G.food+foodInc/60);
   var ar=autoRate()*fz;
   if(ar>0){autoAcc+=ar/60;var gd=0;while(autoAcc>=1&&gd++<6){autoAcc-=1;catchFace(rnd(30,W-30),rnd(y0+30,H-SAND-30),'auto');}if(autoAcc>6)autoAcc=0;}
   if(frenzy>0)frenzy--;
@@ -788,7 +803,6 @@ function step(){
   if(t%15===0)affordPass();
   if(t%30===0&&dirty&&!pressPanel&&tab!=='top')render();
   if(t%60===0)G.pt=(G.pt||0)+1;
-  if(G.af&&t%45===0)autoFuse();
   if(PH()&&parts.length)parts.length=0;
   if(nbAnim)stepNB();
   if(t%300===0)saveGame();
@@ -1116,6 +1130,7 @@ function drawPlate(f){
   txt('earned $'+fmt(f.tot||0),cx,y+27,'#ffe36b',10,1);
   txt('Lv '+f.lvl,cx-cw*0.34,f.cellY+13,'#fff',9.5,0.95);
   if(f.crew)txt('CREW',cx+cw*0.34,f.cellY+13,'#7dd3ff',9.5,1);
+  else if(f.farm)txt('FARM',cx+cw*0.34,f.cellY+13,'#8bdc4a',9.5,1);
   else if(f.lock)txt('LOCKED',cx+cw*0.32,f.cellY+13,'#ffd23f',9,1);
 }
 function drawBase(){
@@ -1160,7 +1175,7 @@ function setView(v){
   selRefresh();dirty=true;
 }
 // ---------- NEW BEST ANIMATION ----------
-// Plays when a catch or fuse unlocks a rarity higher than anything in the current Book. Small for low tiers, cinematic and unique per rarity from Exotic up.
+// Plays when a catch unlocks a rarity higher than anything in the current Book. Small for low tiers, cinematic and unique per rarity from Exotic up.
 function bestRar(){var b=-1,k,v;for(k in G.book){v=+k.split('_')[0];if(v>b)b=v;}return b;}
 var NBT={7:['#34f0e6','#d9fffd','#001f24'],8:['#ff3df2','#ffd9fb','#26002c'],9:['#f2ff3a','#fffbc4','#1a1800'],10:['#ffffff','#ffe9a8','#08080f'],11:['#ffffff','#ff9d2e','#000000'],12:['#8f7bff','#ff7bf0','#0a0528'],13:['#00ff9d','#00e5ff','#00120a'],14:['#ff2b2b','#8a0000','#130000']};
 var NBDUR={3:100,4:120,5:150,6:170,7:220,8:240,9:260,10:280,11:300,12:300,13:300,14:340};
@@ -1480,6 +1495,9 @@ function hudTick(){
   coinsEl.innerHTML='&#129689; '+fmt(G.coins);
   rateEl.innerHTML='&#9889; +'+fmt(curInc)+'/s';
   gemsEl.style.display=G.gems>0?'':'none';gemsEl.innerHTML='&#128142; '+G.gems;
+  var fdp=$('fdp');
+  if(!fdp&&gemsEl.parentNode){fdp=document.createElement('span');fdp.className='pill';fdp.id='fdp';fdp.title='Food: pays for face level-ups. Grown by faces on the Farm.';gemsEl.parentNode.insertBefore(fdp,gemsEl);}
+  if(fdp)fdp.innerHTML='&#127806; '+fmt(G.food);
   fzEl.style.display=frenzy>0?'':'none';fzEl.innerHTML='&#127881; FRENZY '+Math.ceil(frenzy/60)+'s';
   var cp=$('cmb'),wp=$('wxp'),bp=$('bfp'),bs=[],bk;
   cp.style.display=combo>=3?'':'none';cp.innerHTML='&#128293; COMBO x'+combo;
@@ -1492,24 +1510,19 @@ function hudTick(){
   $('bcount').textContent=faces.length+'/'+capN();$('ccount').textContent=crewList().length+'/'+slots();var dy=$('daily');if(dy)dy.style.display=dailyReady()?'':'none';selRefresh();tutTick();
 }
 function affordPass(){
-  var bs=document.querySelectorAll('button[data-cost]');
-  for(var i=0;i<bs.length;i++){var ok=+bs[i].dataset.cost<=G.coins;bs[i].classList.toggle('cant',!ok);bs[i].classList.toggle('can',ok);}
+  var bs=document.querySelectorAll('button[data-cost],button[data-food]');
+  for(var i=0;i<bs.length;i++){var ok=bs[i].dataset.food!==undefined?+bs[i].dataset.food<=G.food:+bs[i].dataset.cost<=G.coins;bs[i].classList.toggle('cant',!ok);bs[i].classList.toggle('can',ok);}
 }
 function faceCard(f){
   var inc=faceInc(f)*gMult(),lc=lvlCost(f),sv=sellValue(f);
-  return `<div class='card r${f.rar}'><div class='fi m${f.mut}${spCls(f.rar)}'></div><div class='info'><b class='${isRb(f.rar)?'rbt':''}${nmCls(f.rar)}'>${faceName(f)}</b><small>Lv ${f.lvl} &bull; $${fmt(inc)}/s${f.crew?' &bull; crew':''} &bull; earned $${fmt(f.tot||0)}</small></div><div class='acts'><button class='mini lock${f.lock?' on':''}' data-a='lock' data-id='${f.id}'>${f.lock?'&#128274;':'&#128275;'}</button><button class='mini${f.crew?' on':''}' data-a='crew' data-id='${f.id}'>&#127907;</button>${f.lvl>=MAXLV?`<button class='mini cant'>MAX</button>`:`<button class='mini up' data-a='lvl' data-id='${f.id}' data-cost='${lc}'>&#11014; $${fmt(lc)}</button>`}<button class='mini sell' data-a='sell' data-id='${f.id}'>&#128176; $${fmt(sv)}</button></div></div>`;
+  return `<div class='card r${f.rar}'><div class='fi m${f.mut}${spCls(f.rar)}'></div><div class='info'><b class='${isRb(f.rar)?'rbt':''}${nmCls(f.rar)}'>${faceName(f)}</b><small>Lv ${f.lvl} &bull; $${fmt(inc)}/s${f.crew?' &bull; crew':''}${f.farm?' &bull; farm':''} &bull; earned $${fmt(f.tot||0)}</small></div><div class='acts'><button class='mini lock${f.lock?' on':''}' data-a='lock' data-id='${f.id}'>${f.lock?'&#128274;':'&#128275;'}</button><button class='mini${f.crew?' on':''}' data-a='crew' data-id='${f.id}'>&#127907;</button><button class='mini${f.farm?' on':''}' data-a='farm' data-id='${f.id}' title='Put on the Farm to grow Food'>&#127806;</button>${f.lvl>=MAXLV?`<button class='mini cant'>MAX</button>`:`<button class='mini up' data-a='lvl' data-id='${f.id}' data-food='${lc}'>&#11014; ${fmt(lc)} &#127806;</button>`}<button class='mini sell' data-a='sell' data-id='${f.id}'>&#128176; $${fmt(sv)}</button></div></div>`;
 }
 function facesHtml(){
   var h=`<div class='note'>&#127754; Base <b>${faces.length}/${capN()}</b> &bull; <b>$${fmt(curInc)}/s</b></div><div class='tools'>`;
   var sc=0,r,i,cnt;
-  for(i=0;i<faces.length;i++)if(!faces[i].crew&&!faces[i].lock&&faces[i].rar<=1&&faces[i].mut===0)sc++;
-  h+=`<div class='note'>Tip: faces earn coins every second. Press the rod button to put one on the crew, sell extras for coins, or fuse 3 of the same rarity into 1 better face.</div><button class='btn mini2 red' data-a='sellcheap' title='Sells every unlocked, non-crew, Normal Common or Uncommon face'${sc?'':' disabled'}>&#128176; Sell ${sc} cheap</button>`;
+  for(i=0;i<faces.length;i++)if(!faces[i].crew&&!faces[i].farm&&!faces[i].lock&&faces[i].rar<=1&&faces[i].mut===0)sc++;
+  h+=`<div class='note'>Tip: faces earn coins every second. Press the rod button to put one on the crew, or the plant button to put it on the Farm. Level-ups cost Food, which only the Farm grows. Sell extras for coins.</div><button class='btn mini2 red' data-a='sellcheap' title='Sells every unlocked, non-crew, Normal Common or Uncommon face'${sc?'':' disabled'}>&#128176; Sell ${sc} cheap</button>`;
   h+=`<button class='btn' data-a='asell' title='Automatically sells new catches at or below this rarity. Click to change.'>&#9851; Auto-sell: ${G.as<0?'OFF':'&le; '+RAR[G.as].n}</button>`;
-  h+=`<button class='btn pink' data-a='autofuse' title='Automatically fuses any 3 unlocked, non-crew faces of the same rarity'>&#9879; Auto-fuse: ${G.af?'ON':'OFF'}</button><button class='btn' data-a='fuseall' title='Fuse every possible trio once, right now'>Fuse all now</button>`;
-  for(r=0;r<ULTRA-1;r++){
-    cnt=0;for(i=0;i<faces.length;i++)if(faces[i].rar===r&&!faces[i].crew&&!faces[i].lock)cnt++;
-    if(cnt>=3)h+=`<button class='btn pink' data-a='fuse' data-r='${r}'>&#9879; Fuse 3 ${RAR[r].n} &rarr; ${RAR[r+1].n}</button>`;
-  }
   h+='</div>';
   if(!faces.length)return h+`<div class='note big'>No faces yet!<br>Click the water to go fishing &#127907;</div>`;
   var sorted=faces.slice().sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;});
@@ -1535,11 +1548,14 @@ function questsHtml(){
   for(i=0;i<ACH.length;i++){var a=ACH[i],ok=G.ach[a.id];h+=`<div class='ach${ok?' ok':''}'><div class='ai'>${a.i}</div><div><b>${a.n}</b><small>${a.d}</small></div></div>`;}
   return h;
 }
+function upCard(k){
+  var u=UPS[k],l=G.up[k],pl=upPlan(k),c=pl.c,cap=upMax(k),atCap=l>=cap,isFin=cap>=u.max,nx=upMax(k,(G.asc|0)+1);
+  return `<div class='card shopc' style='--rc:${u.col}'><div class='ic'>${u.i}</div><div class='info'><b>${u.n} <em>Lv ${l}${atCap&&isFin?' MAX':'/'+cap}</em></b><small>${u.d}</small><small style='color:${u.col}'>${u.eff()}</small>${isFin?'':`<small>Cap rises with every ascension (next ${nx}, final ${u.max})</small>`}<div class='bar'><i style='width:${Math.min(100,l/Math.max(1,cap)*100)}%'></i></div></div>${atCap?`<button class='btn buy cant'>${isFin?'MAX':'CAP'}</button>`:`<button class='btn gold buy' data-a='up' data-k='${k}' data-cost='${c}'>${pl.n>1?'x'+pl.n+' ':''}$${fmt(c)}</button>`}</div>`;
+}
 function shopHtml(){
   var h=baitHtml()+`<div class='sech'>&#128736; Upgrades</div><div class='tools'><span style='align-self:center;font-size:11px'>Buy:</span><button class='btn seg${G.buy===1?' on':''}' data-a='buymode' data-v='1'>x1</button><button class='btn seg${G.buy===10?' on':''}' data-a='buymode' data-v='10'>x10</button><button class='btn seg${G.buy===0?' on':''}' data-a='buymode' data-v='0'>MAX</button></div>`,i,k,u,l,c,mx2,pl;
   for(i=0;i<UK.length;i++){
-    k=UK[i];u=UPS[k];l=G.up[k];pl=upPlan(k);c=pl.c;mx2=l>=u.max;
-    h+=`<div class='card shopc' style='--rc:${u.col}'><div class='ic'>${u.i}</div><div class='info'><b>${u.n} <em>Lv ${l}${mx2?' MAX':'/'+u.max}</em></b><small>${u.d}</small><small style='color:${u.col}'>${u.eff()}</small><div class='bar'><i style='width:${l/u.max*100}%'></i></div></div>${mx2?`<button class='btn buy cant'>MAX</button>`:`<button class='btn gold buy' data-a='up' data-k='${k}' data-cost='${c}'>${pl.n>1?'x'+pl.n+' ':''}$${fmt(c)}</button>`}</div>`;
+    h+=upCard(UK[i]);
   }
   return h;
 }
@@ -1551,6 +1567,17 @@ function crewHtml(){
   }
   for(i=list.length;i<slots();i++)h+=`<div class='card empty'>Empty slot: click &#127907; on a face</div>`;
   return h+`<div class='note'>Crew faces stand on the dock and fish for you. Rarer and higher level means faster. Buy more slots in the Shop.</div>`;
+}
+function farmHtml(){
+  var list=farmList(),i,f,h=`<div class='note'>&#127806; Farm <b>${list.length}/${farmSlots()}</b> &bull; <b>${fmt(farmRate())}</b> Food/s &bull; Food stored <b>${fmt(G.food)}</b></div><div class='tools'><button class='btn green' data-a='autofarm'>&#9733; Auto-pick best</button><button class='btn red' data-a='clearfarm'>Clear</button></div>`;
+  for(i=0;i<list.length;i++){
+    f=list[i];
+    h+=`<div class='card r${f.rar}'><div class='fi m${f.mut}${spCls(f.rar)}'></div><div class='info'><b class='${isRb(f.rar)?'rbt':''}${nmCls(f.rar)}'>${faceName(f)}</b><small>Lv ${f.lvl} &bull; ${fmt(farmFm(f))} Food/s</small></div><div class='acts'><button class='mini on' data-a='farm' data-id='${f.id}'>Remove from farm</button></div></div>`;
+  }
+  for(i=list.length;i<farmSlots();i++)h+=`<div class='card empty'>Empty plot: click &#127806; on a face</div>`;
+  h+=`<div class='note'>Farm faces grow Food instead of fishing. Food is the only thing that pays for face level-ups. A face is either crew or on the farm, never both. Rarer and higher level means more Food.</div><div class='sech'>&#127806; Farm upgrades</div><div class='tools'><span style='align-self:center;font-size:11px'>Buy:</span><button class='btn seg${G.buy===1?' on':''}' data-a='buymode' data-v='1'>x1</button><button class='btn seg${G.buy===10?' on':''}' data-a='buymode' data-v='10'>x10</button><button class='btn seg${G.buy===0?' on':''}' data-a='buymode' data-v='0'>MAX</button></div>`;
+  for(i=0;i<FUK.length;i++)h+=upCard(FUK[i]);
+  return h;
 }
 function bookHtml(){
   var h=`<div class='note'>Discovered <b>${disc}/${NR*5}</b> &bull; +${disc*3}% cash. Every new rarity and mutation combo you catch adds +3% cash. Catching a rarity higher than ever before triggers a NEW BEST celebration.</div><table class='bk'><tr><th></th>`,m,r,key,found,secret;
@@ -1571,7 +1598,7 @@ function bookHtml(){
 }
 function ascHtml(){
   var g=asGain();
-  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A restart. Resets coins, gems, upgrades, the Book, quests and achievements. You keep your 3 best faces (back at level 1), your ascension count and your total earnings.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
+  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A restart. Resets coins, Food, gems, upgrades, the Book, quests and achievements. You keep your 3 best faces (back at level 1), your ascension count and your total earnings.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
 }
 function srow(a,b){return `<div class='srow'><span>${a}</span><b>${b}</b></div>`;}
 function nextAscAt(){return ascCost();}
@@ -1581,7 +1608,7 @@ function statsHtml(){
   var h=`<div class='sech'>&#127919; Next goals</div>`;
   for(i=0;i<ACH.length;i++)if(!G.ach[ACH[i].id]){a=ACH[i];break;}
   if(a)h+=goalCard(a.i,'Achievement: '+a.n,a.d+' (+5% cash)',-1);
-  for(i=0;i<UK.length;i++){k=UK[i];if(G.up[k]>=UPS[k].max)continue;c=upCost(k);if(c<bc){bc=c;bk=k;}}
+  for(i=0;i<UK.length;i++){k=UK[i];if(G.up[k]>=upMax(k))continue;c=upCost(k);if(c<bc){bc=c;bk=k;}}
   if(bk)h+=goalCard(UPS[bk].i,'Cheapest upgrade: '+UPS[bk].n,'Level '+(G.up[bk]+1)+' costs $'+fmt(bc),G.coins/bc);
   h+=goalCard('&#128214;','Fill the Book',disc+'/'+NR*5+' entries discovered (+3% cash each)',disc/(NR*5));
   h+=G.asc>=MAX_ASC?goalCard('&#127775;','Maximum ascension reached','Ascension '+MAX_ASC+' of '+MAX_ASC,1):goalCard('&#127775;',g>=1?'You can afford to ascend':'Next ascension','$'+fmt(G.coins)+' / $'+fmt(nx)+' cash',Math.min(1,G.coins/nx));
@@ -1593,19 +1620,18 @@ function statsHtml(){
   h+=srow('Income','$'+fmt(curInc)+'/s');
   h+=srow('Ascensions',G.asc+' / '+MAX_ASC);
   if(disc>0)h+=srow('Best rarity found',RAR[bb[0]].n);
-  h+=srow('Faces fused',G.fused|0);
   h+=srow('Chests opened',G.chests|0);
   h+=srow('Quests done',G.qdone|0);
   h+=srow('Achievements',achN()+'/'+ACH.length);
   h+=`<div class='sech'>&#9000; Shortcuts</div>`;
   h+=srow('Cast a line','Space or click');
-  h+=srow('Switch tabs','1 - 8');
+  h+=srow('Switch tabs','1 - 9');
   h+=srow('Fishing / Base view','B');
   return h;
 }
 function render(){
   var st=body.scrollTop,h='';
-  if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else h=ascHtml();
+  if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='farm')h=farmHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else h=ascHtml();
   body.innerHTML=h;body.scrollTop=st;
   var tb=document.querySelectorAll('.tab');
   for(var i=0;i<tb.length;i++)tb[i].classList.toggle('on',tb[i].dataset.tab===tab);
@@ -1615,7 +1641,7 @@ function render(){
 // ---------- ACCOUNT / LEADERBOARD ----------
 // Online features talk to the /api functions of the Vercel deployment. When the server cannot be reached (offline file, preview) the game plays on and the Top tab says so.
 var AK='reelFacesAuth',acct={token:'',name:'',u:'',pwOpen:false,rank:0,total:0,msg:'',busy:false,subBusy:false,rows:null,lbT:0,lbBusy:false,offline:false,view:'life',vtotal:0,vrank:0,feed:null,prof:null};
-function saveBlob(){G.ts=Date.now();return JSON.stringify({S:SEASON,G:G,faces:faces.map(function(f){return [f.id,f.rar,f.mut,f.lvl,f.crew?1:0,f.lock?1:0,Math.floor(f.tot||0)];})});}
+function saveBlob(){G.ts=Date.now();return JSON.stringify({S:SEASON,G:G,faces:faces.map(function(f){return [f.id,f.rar,f.mut,f.lvl,f.crew?1:0,f.lock?1:0,Math.floor(f.tot||0),f.farm?1:0];})});}
 function acctLoad(){try{var s=JSON.parse(localStorage.getItem(AK)||'null');if(s&&s.token&&s.name){acct.token=s.token;acct.name=s.name;}}catch(_){}}
 function acctStore(){try{if(acct.token)localStorage.setItem(AK,JSON.stringify({token:acct.token,name:acct.name}));else localStorage.removeItem(AK);}catch(_){}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');}
@@ -1863,36 +1889,28 @@ function topHtml(){
 function faceById(id){for(var i=0;i<faces.length;i++)if(faces[i].id===id)return faces[i];return null;}
 function fxPos(f){if(view!=='base')return f.crew?[f.cx,f.cy]:[W/2,y0+40];return [f.x,f.y];}
 function sellFace(f){var v=sellValue(f),p=fxPos(f);earn(v);floatText(p[0],p[1],'+$'+fmt(v),'#ffe36b',14);spark(p[0],p[1],'#ffd23f',8,2,0,0.05);removeFace(f);tone(700,0.1,'square',0.04);}
-function fuse(r,q){if(r>=ULTRA-1)return;if((G.asc|0)<ASC_REQ[r+1]){if(!q)toast('Ascend '+ASC_REQ[r+1]+' times to fuse into '+RAR[r+1].n);return;}
-  var c=faces.filter(function(f){return f.rar===r&&!f.crew&&!f.lock;}).sort(function(a,b){return a.mut-b.mut||a.lvl-b.lvl;}).slice(0,3);
-  if(c.length<3)return;
-  var m=Math.max(c[0].mut,c[1].mut,c[2].mut),i;
-  for(i=0;i<3;i++)removeFace(c[i]);
-  var nf=makeFace(r+1,m,1);
-  var key=(r+1)+'_'+m,pb=bestRar();if(!G.book[key]){disc++;}G.book[key]=(G.book[key]||0)+1;if(r+1>pb)newBest(r+1,m,pb);
-  placeInWater(nf);faces.push(nf);
-  if(!q){burst(nf.x,nf.y,r+1,m);banner('FUSED! '+faceName(nf).toUpperCase(),'Three became one!',faceCol(nf),true);}
-  if(!q)sfxCatch(r+2);G.fused++;qProg('fuse',1);dirty=true;
-}
 function setCrew(f,on){
-  if(on){if(crewList().length>=slots()){toast('Crew is full! Buy more slots in the Shop.');return;}f.crew=true;f.air=false;}
+  if(on){if(crewList().length>=slots()){toast('Crew is full! Buy more slots in the Shop.');return;}f.farm=false;f.crew=true;f.air=false;}
   else{f.crew=false;f.x=f.cx||W/2;f.y=y0+30;pickTarget(f);}
   dirty=true;
 }
 function autoCrew(){
   var i;
   for(i=0;i<faces.length;i++)faces[i].crew=false;
-  faces.slice().sort(function(a,b){return crewFm(b)-crewFm(a);}).slice(0,slots()).forEach(function(f){f.crew=true;f.air=false;});
+  faces.slice().sort(function(a,b){return crewFm(b)-crewFm(a);}).slice(0,slots()).forEach(function(f){f.crew=true;f.farm=false;f.air=false;});
   for(i=0;i<faces.length;i++)if(!faces[i].crew&&faces[i].y<y0+10)faces[i].y=y0+30;
   dirty=true;
 }
-function autoFuse(){var r,n=0,c,i;
-  for(r=0;r<ULTRA-1;r++){
-    if((G.asc|0)<ASC_REQ[r+1])break;
-    while(n<8){c=0;for(i=0;i<faces.length;i++)if(faces[i].rar===r&&!faces[i].crew&&!faces[i].lock)c++;if(c<3)break;fuse(r,true);n++;}
-  }
-  if(n)toast('Auto-fused '+n+' time'+(n>1?'s':''));
-  return n;}
+function setFarm(f,on){
+  if(on){if(farmList().length>=farmSlots()){toast('Farm is full! Buy more plots in the Farm tab.');return;}if(f.crew)setCrew(f,false);f.farm=true;}
+  else f.farm=false;
+  dirty=true;
+}
+function autoFarm(){
+  var i;for(i=0;i<faces.length;i++)faces[i].farm=false;
+  faces.filter(function(f){return !f.crew;}).sort(function(a,b){return farmFm(b)-farmFm(a);}).slice(0,farmSlots()).forEach(function(f){f.farm=true;});
+  dirty=true;
+}
 var ascArm=false;
 // Ascending is a restart: coins, gems, upgrades, Book, quests and achievements all reset, but you keep your ASC_KEEP best faces (back at level 1, so a new run does not start from zero faces).
 // The ascension count, the lifetime earnings (lp) and your settings survive too.
@@ -1901,11 +1919,11 @@ function keepFaces(){return faces.slice().sort(function(a,b){return b.rar-a.rar|
 function ascend(){
   if((G.asc|0)>=MAX_ASC){toast('You have reached the maximum ascension ('+MAX_ASC+').');return;}if(asGain()<1)return;
   var o=G,n=newG(),keep=keepFaces();
-  n.asc=o.asc+1;n.mute=o.mute;n.perf=o.perf;n.af=o.af;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
+  n.asc=o.asc+1;n.mute=o.mute;n.perf=o.perf;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
   G=n;faces=[];hooks=[];frenzy=0;autoAcc=0;bubble=null;chest=null;combo=0;wx=null;wxT=7200;chestT=5400;setTide(0,2400);recent=[];sinkers=[];ultraAnim=null;nbAnim=null;ascArm=false;
   stage.classList.remove('ult');hintEl.style.display='';
   keep.forEach(function(k){var f=makeFace(k[0],k[1],1),key=k[0]+'_'+k[1];G.book[key]=(G.book[key]||0)+1;placeInWater(f);faces.push(f);});
-  recount();ensureQuests();autoCrew();
+  recount();ensureQuests();autoCrew();autoFarm();
   banner('ASCENDED!','Ascension #'+G.asc+' - a fresh start','#ffe36b',true);flash=0.8;
   saveGame();dirty=true;render();hudTick();
 }
@@ -1914,10 +1932,10 @@ function onAct(e){
   if(!b||!b.dataset||b.disabled)return;
   var a=b.dataset.a,f,c,k;
   if(a==='crew'){f=faceById(+b.dataset.id);if(f)setCrew(f,!f.crew);}
-  else if(a==='lvl'){f=faceById(+b.dataset.id);if(f&&f.lvl<MAXLV){c=lvlCost(f);if(G.coins>=c){G.coins-=c;f.lvl++;f.sq=0.25;var q=fxPos(f);spark(q[0],q[1],'#7dd3ff',10,2.4,0,0.03);floatText(q[0],q[1],'LEVEL UP!','#7dd3ff',13);tone(520,0.1,'triangle',0.06);tone(780,0.14,'triangle',0.06,0.08);}}}
+  else if(a==='farm'){f=faceById(+b.dataset.id);if(f)setFarm(f,!f.farm);}
+  else if(a==='lvl'){f=faceById(+b.dataset.id);if(f&&f.lvl<MAXLV){c=lvlCost(f);if(G.food<c)toast('Not enough Food - put faces to work on the Farm!');else{G.food-=c;f.lvl++;f.sq=0.25;var q=fxPos(f);spark(q[0],q[1],'#7dd3ff',10,2.4,0,0.03);floatText(q[0],q[1],'LEVEL UP!','#7dd3ff',13);tone(520,0.1,'triangle',0.06);tone(780,0.14,'triangle',0.06,0.08);}}}
   else if(a==='sell'){f=faceById(+b.dataset.id);if(f){if(f.lock)toast('Unlock it first!');else sellFace(f);}}
-  else if(a==='sellcheap'){faces.filter(function(x){return !x.crew&&!x.lock&&x.rar<=1&&x.mut===0;}).forEach(sellFace);}
-  else if(a==='fuse'){fuse(+b.dataset.r);}
+  else if(a==='sellcheap'){faces.filter(function(x){return !x.crew&&!x.farm&&!x.lock&&x.rar<=1&&x.mut===0;}).forEach(sellFace);}
   else if(a==='buymode'){G.buy=+b.dataset.v;}
   else if(a==='up'){k=b.dataset.k;var pl=upPlan(k);c=pl.c;if(pl.n>0&&G.coins>=c){G.coins-=c;G.up[k]+=pl.n;tone(600,0.1,'square',0.05);tone(900,0.16,'square',0.05,0.08);burst(W/2,y0+60,3,0);}}
   else if(a==='lock'){f=faceById(+b.dataset.id);if(f)f.lock=!f.lock;}
@@ -1936,11 +1954,11 @@ function onAct(e){
   else if(a==='selx'){selId=0;}
   else if(a==='ultrademo'){}
   else if(a==='autocrew')autoCrew();
+  else if(a==='autofarm')autoFarm();
+  else if(a==='clearfarm'){farmList().forEach(function(x){setFarm(x,false);});}
   else if(a==='clearcrew'){crewList().forEach(function(x){setCrew(x,false);});}
   else if(a==='asc'){if(!ascArm)ascArm=true;else{ascArm=false;ascend();}dirty=true;}
   else if(a==='perf'||a==='perfset'){G.perf=a==='perf'?(G.perf?0:1):(+b.dataset.v|0);applyPerf();dirty=true;}
-  else if(a==='autofuse'){G.af=G.af?0:1;toast('Auto-fuse '+(G.af?'on':'off'));}
-  else if(a==='fuseall'){if(!autoFuse())toast('Nothing to fuse yet');}
   else if(a==='tutor'){G.tut=0;tutShown=-1;tutTick();toast('Tutorial restarted');}
   else if(a==='wipe'){
     if(!wipeArm)wipeArm=true;
@@ -1968,9 +1986,10 @@ var TUT=[
 {t:'Faces pay you every second',d:'Every face in your base earns coins, and rarer or higher-level faces earn more. Catch a few more to build up some cash.',ok:function(){return G.caught>=5;}},
 {t:'Spend coins in the Shop',d:'Open the Shop tab (key 2) and buy your first upgrade. Auto Fish casts a line for you, Quick Fish shortens the click cooldown.',tab:'shop',ok:function(){var k,s=0;for(k in G.up)s+=G.up[k];return s>=1;}},
 {t:'Put a face on the crew',d:'Open the Faces tab (key 1) and press the rod button on a face. Crew faces stand on the dock and fish for you.',tab:'faces',ok:function(){return crewList().length>=1;}},
-{t:'Level, sell and fuse',d:'In the Faces tab you can level a face up, sell extras, or fuse 3 faces of the same rarity into one better face. Lock a face to protect it from selling.',tab:'faces'},
+{t:'Grow Food on the Farm',d:'Open the Farm tab (key 4) and press the plant button on a face in the Faces tab. Farm faces grow Food instead of fishing, and Food is what pays for level-ups.',tab:'farm',ok:function(){return farmList().length>=1;}},
+{t:'Level and sell',d:'In the Faces tab you can level a face up with Food (grown on the Farm) or sell extras for coins. Lock a face to protect it from selling.',tab:'faces'},
 {t:'Rarities and NEW BEST',d:'Faces come in 16 rarities, from Common up to a secret top tier. Whenever you catch a rarity higher than any you have found before, a NEW BEST celebration plays, and the higher it is, the bigger the show.',tab:'book'},
-{t:'Quests, Book and Ascend',d:'Quests (4) pay cash. The Book (5) tracks every rarity and mutation. Stats (6) shows your next goals. Ascend (7) costs a lot of cash and restarts everything, but unlocks the rarest faces. Press B to visit your Base. Have fun!'}
+{t:'Quests, Book and Ascend',d:'Quests (5) pay cash. The Book (6) tracks every rarity and mutation. Stats (7) shows your next goals. Ascend (8) costs a lot of cash and restarts everything, but unlocks the rarest faces. Press B to visit your Base. Have fun!'}
 ];
 function tutHl(name){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].classList.toggle('hl',!!name&&tb[i].dataset.tab===name);}
 function tutTick(){
@@ -2013,7 +2032,7 @@ window.addEventListener('keydown',function(e){
   if(e.target&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key===' '){e.preventDefault();castAt(mx||W/2,my||y0+60);}
-  else if(e.key>='1'&&e.key<='8'){gotoTab(['faces','shop','crew','quests','book','stats','asc','top'][+e.key-1]);}
+  else if(e.key>='1'&&e.key<='9'){gotoTab(['faces','shop','crew','farm','quests','book','stats','asc','top'][+e.key-1]);}
   else if(e.key==='b'||e.key==='B'){setView(view==='base'?'fish':'base');}
   else if(e.key==='c'||e.key==='C'){setView(view==='crew'?'fish':'crew');}
 });
@@ -2057,7 +2076,7 @@ function devFull(lvl){var r,m,c=0;devCap(NR*5);for(r=NR-1;r>=0;r--)for(m=4;m>=0;
 function devFill(lvl){var i=0,c=0;while(faces.length<capN()&&i<1000){devAdd(NR-1-(i%NR),Math.floor(i/NR)%5,lvl);i++;c++;}recount();return c;}
 function devLevelAll(){faces.forEach(function(f){f.lvl=MAXLV;});}
 var DACT={
-  max:function(){devCoins(1e21,true);G.gems=Math.max(G.gems,1000);devUps();devBaits();devAch();devFull(MAXLV);devFill(MAXLV);devBook();devLevelAll();autoCrew();return 'Everything maxed ('+faces.length+' faces)';},
+  max:function(){devCoins(1e21,true);G.food=Math.max(G.food,1e9);G.gems=Math.max(G.gems,1000);devUps();devBaits();devAch();devFull(MAXLV);devFill(MAXLV);devBook();devLevelAll();autoCrew();autoFarm();return 'Everything maxed ('+faces.length+' faces)';},
   book:function(){devBook();return 'Book complete (all 80)';},
   each:function(){var r,c=0;devCap(NR);for(r=NR-1;r>=0;r--){if(faces.length>=capN())break;devAdd(r,0,1);c++;}recount();return c+' faces added';},
   full:function(){return devFull(1)+' faces added';},
@@ -2260,9 +2279,11 @@ function loadGame(){
     var o=JSON.parse(s),g=o.G,d=newG(),k;
     // Saves from before the season reset (or without a season) are discarded: the game starts fresh.
     if(!g||o.S!==SEASON){try{localStorage.removeItem(KEY);}catch(_){}return;}
-    ['coins','run','gems','asc','nid','caught','ts','mute','perf','af','as','qn','fused','chests','qdone','dl','ds','buy','pt','lp','tut','dt'].forEach(function(key){if(typeof g[key]==='number'&&isFinite(g[key]))d[key]=g[key];});
-    for(k in d.up)if(g.up&&typeof g.up[k]==='number')d.up[k]=clamp(g.up[k],0,UPS[k].max);
-    d.asc=clamp(d.asc|0,0,MAX_ASC);d.coins=clamp(d.coins,0,1e21);d.run=clamp(d.run,0,1e21);d.lp=clamp(d.lp,0,1e24);d.gems=clamp(d.gems,0,1e9);d.caught=clamp(d.caught,0,1e9);d.as=clamp(d.as|0,-1,3);d.perf=clamp(d.perf|0,0,2);d.af=d.af?1:0;if(d.buy!==10&&d.buy!==0)d.buy=1;
+    ['coins','run','food','gems','asc','nid','caught','ts','mute','perf','as','qn','chests','qdone','dl','ds','buy','pt','lp','tut','dt'].forEach(function(key){if(typeof g[key]==='number'&&isFinite(g[key]))d[key]=g[key];});
+    // Saves from before ascension-scaling caps (no ucv) are brought under today's cap and the coins spent on the removed levels are refunded.
+    var lim0=clamp(d.asc|0,0,MAX_ASC);
+    for(k in d.up)if(g.up&&typeof g.up[k]==='number'){var lv=clamp(Math.floor(g.up[k]),0,UPS[k].max),cp=upMax(k,lim0);if(g.ucv!==1&&lv>cp){for(var j=cp;j<lv;j++)d.coins+=Math.ceil(UPS[k].b*Math.pow(UPS[k].g,j));lv=cp;}d.up[k]=lv;}
+    d.asc=clamp(d.asc|0,0,MAX_ASC);d.coins=clamp(d.coins,0,1e21);d.run=clamp(d.run,0,1e21);d.lp=clamp(d.lp,0,1e24);d.gems=clamp(d.gems,0,1e9);d.food=clamp(d.food,0,FOOD_MAX);d.caught=clamp(d.caught,0,1e9);d.as=clamp(d.as|0,-1,3);d.perf=clamp(d.perf|0,0,2);if(d.buy!==10&&d.buy!==0)d.buy=1;
     if(typeof g.tut!=='number'&&d.caught>0)d.tut=99;
     if(g.bf)['luck','mut','cash'].forEach(function(bk){if(typeof g.bf[bk]==='number'&&isFinite(g.bf[bk]))d.bf[bk]=clamp(g.bf[bk],0,600);});
     if(g.ach)for(k in g.ach)if(g.ach[k]===1)d.ach[k]=1;
@@ -2272,14 +2293,14 @@ function loadGame(){
     (o.faces||[]).forEach(function(a){
       if(!Array.isArray(a)||a[1]<0||a[1]>=NR||a[1]>maxRarFor(d.asc)||a[2]<0||a[2]>4)return;
       var f=makeFace(a[1],a[2],clamp(a[3]|0,1,MAXLV));f.id=a[0];f.lock=!!a[5];f.tot=+a[6]||0;
-      if(a[4]&&crewList().length<slots())f.crew=true;else placeInWater(f);
+      if(a[4]&&crewList().length<slots())f.crew=true;else{placeInWater(f);if(a[7]&&farmList().length<farmSlots())f.farm=true;}
       faces.push(f);
     });
     var mxId=0;faces.forEach(function(f){if(f.id>mxId)mxId=f.id;});if(G.nid<=mxId)G.nid=mxId+1;
     if(G.ts&&faces.length){
       // A save stamped in the future means the device clock was turned back: no offline earnings for that load.
       var nowT=Date.now(),dt=G.ts>nowT+300000?0:Math.min(7200,Math.max(0,(nowT-G.ts)/1000));
-      if(dt>20){var inc=0,gm=gMult();faces.forEach(function(f){inc+=faceInc(f)*gm;});var gain=inc*dt*0.5;G.coins+=gain;G.run+=gain;welcome=gain;}
+      if(dt>20){var inc=0,gm=gMult();faces.forEach(function(f){inc+=faceInc(f)*gm;});var gain=inc*dt*0.5;G.coins+=gain;G.run+=gain;welcome=gain;G.food=Math.min(FOOD_MAX,G.food+farmRate()*dt*0.5);}
     }
     if(G.caught>0)hintEl.style.display='none';
     applyPerf();
@@ -2298,7 +2319,7 @@ $('snd').innerHTML=G.mute?'&#128263;':'&#128266;';
 render();hudTick();
 (function(){
   var el=document.createElement('div'),i,b,t0=Date.now(),sh=0,ti=0,fin=false,ims=[img];
-  var tips=['Click the water or press Space to cast a line and catch faces.','Three faces of the same rarity can be fused into one of the next rarity.','Higher rarities earn far more money per second. Keep your best ones!','Put faces in your crew so they cast lines for you.','Ascending costs a lot of cash and resets your run, but it unlocks the rarest tiers.','Rainbow and Void faces are rare variants that earn much more.'];
+  var tips=['Click the water or press Space to cast a line and catch faces.','Put faces on the Farm to grow Food, then spend it to level up your best faces.','Higher rarities earn far more money per second. Keep your best ones!','Put faces in your crew so they cast lines for you.','Ascending costs a lot of cash and resets your run, but it unlocks the rarest tiers.','Rainbow and Void faces are rare variants that earn much more.'];
   var msgs=['Waking the fish...','Baiting the hooks...','Polishing the scales...','Counting your coins...','Almost there...'];
   el.id='load';
   el.innerHTML="<div class='lgo'><svg viewBox='0 0 64 40' width='1.6em' height='1em' aria-hidden='true'><path d='M4 20C14 6 34 4 46 20 34 36 14 34 4 20Z' fill='#4aa8ff' stroke='#12063a' stroke-width='3' stroke-linejoin='round'/><path d='M44 20 60 8v24Z' fill='#ffe36b' stroke='#12063a' stroke-width='3' stroke-linejoin='round'/><circle cx='16' cy='17' r='3.5' fill='#fff'/><circle cx='15' cy='17' r='1.6' fill='#12063a'/></svg></div><h1 class='nm nm15'>Lachy Fish</h1><div class='bar'><i id='lbar'></i></div><div id='lmsg'>"+msgs[0]+"</div><small id='ltip'>"+tips[0]+"</small>";
@@ -2333,7 +2354,7 @@ function loop(ts){
     try{ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.shadowBlur=0;}catch(_){}
   }
 }
-if(window.__test)window.__test({G:function(){return G;},faces:function(){return faces;},catchFace:catchFace,startUltra:startUltra,setView:setView,baseClick:baseClick,cells:function(){return cells;},ultra:function(){return ultraAnim;},newBest:newBest,nb:function(){return nbAnim;},weights:weightsArr,autoFuse:autoFuse,loadingDone:function(){return !loading;},ftx:function(){return ftx;},capN:capN,step:step,draw:draw,render:render,setTab:function(x){tab=x;render();},fuse:fuse,autoCrew:autoCrew,ascend:ascend,setTide:setTide,tideNow:tideNow,sellFace:sellFace,setWx:function(i){var d=WX[i];wx={id:i,t:2700,max:2700,mut:d.mut||0,luck:d.luck||0,cash:d.cash||0};},spawn:function(r,m){var f=makeFace(r,m,1);placeInWater(f);faces.push(f);burst(f.x,f.y,r,m);dirty=true;},qProg:qProg,claimDaily:claimDaily,dailyReady:dailyReady,upPlan:upPlan,checkAch:checkAch,genQuest:genQuest,devTainted:function(){return devTaint;},acctSubmit:acctSubmit,forceChest:function(){chest={x:W/2,y:y0+30,vx:0,life:600,ph:0};openChest();},W:function(){return W;},sky:function(){var sr=Math.max(10,Math.min((y0-skyTop)*0.4,34));return {sx:W*0.84,sy:skyTop+(y0-skyTop)*0.5,sr:sr,ring:sr*2.3,skyTop:skyTop,y0:y0,W:W,H:H};}});
+if(window.__test)window.__test({G:function(){return G;},faces:function(){return faces;},catchFace:catchFace,startUltra:startUltra,setView:setView,baseClick:baseClick,cells:function(){return cells;},ultra:function(){return ultraAnim;},newBest:newBest,nb:function(){return nbAnim;},weights:weightsArr,loadingDone:function(){return !loading;},ftx:function(){return ftx;},capN:capN,step:step,draw:draw,render:render,setTab:function(x){tab=x;render();},autoCrew:autoCrew,autoFarm:autoFarm,farmList:farmList,ascend:ascend,setTide:setTide,tideNow:tideNow,sellFace:sellFace,setWx:function(i){var d=WX[i];wx={id:i,t:2700,max:2700,mut:d.mut||0,luck:d.luck||0,cash:d.cash||0};},spawn:function(r,m){var f=makeFace(r,m,1);placeInWater(f);faces.push(f);burst(f.x,f.y,r,m);dirty=true;},qProg:qProg,claimDaily:claimDaily,dailyReady:dailyReady,upPlan:upPlan,checkAch:checkAch,genQuest:genQuest,devTainted:function(){return devTaint;},acctSubmit:acctSubmit,forceChest:function(){chest={x:W/2,y:y0+30,vx:0,life:600,ph:0};openChest();},W:function(){return W;},sky:function(){var sr=Math.max(10,Math.min((y0-skyTop)*0.4,34));return {sx:W*0.84,sy:skyTop+(y0-skyTop)*0.5,sr:sr,ring:sr*2.3,skyTop:skyTop,y0:y0,W:W,H:H};}});
 window.addEventListener('beforeunload',saveGame);
 loop(0);
 })();

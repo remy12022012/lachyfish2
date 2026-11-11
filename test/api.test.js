@@ -32,7 +32,7 @@ function mk(o, x) {
   }
   const book = {}, cap = maxRarFor(Math.max(0, Math.min(20, Math.floor(s.asc) || 0))), n = () => Object.keys(book).length;
   for (let r = 0; r <= cap && n() < s.book; r++) for (let m = 0; m < 5 && n() < s.book; m++) book[r + '_' + m] = 1;
-  const g = Object.assign({ asc: s.asc, coins: Math.floor(s.coins), caught: s.caught, gems: 0, up: {}, book, fused: s.book, ach: {} }, x.g || {});
+  const g = Object.assign({ asc: s.asc, coins: Math.floor(s.coins), caught: s.caught, gems: 0, up: {}, book, ach: {} }, x.g || {});
   s.save = x.save !== undefined ? x.save : JSON.stringify({ S: 3, G: g, faces });
   return s;
 }
@@ -491,6 +491,44 @@ async function t(name, fn) {
     assert.ok(run({ coins: 1e8 }, {}, prev).soft.includes('coin jump'));
     assert.ok(run({ caught: 5000 }, {}, prev).soft.includes('catch rate'));
     assert.ok(run({}, { g: { gems: 100 } }, prev).soft.includes('gem rate'));
+  });
+  await t('upgrade caps rise with each ascension up to the final max; old clients without ucv are only soft', async () => {
+    const { inspect, upCap, UP_MAX } = require('../lib/cheat'), now = Date.now();
+    const run = (o, x) => { const b = mk(o, x); return inspect(b, JSON.parse(b.save), null, now); };
+    assert.strictEqual(upCap('val', 0), 20);
+    assert.strictEqual(upCap('val', 5), 35);
+    assert.strictEqual(upCap('val', 10), 50);
+    assert.strictEqual(upCap('val', 20), 50, 'never above the final max');
+    for (const k of Object.keys(UP_MAX)) { let p = 0; for (let a = 0; a <= 20; a++) { const c = upCap(k, a); assert.ok(c >= p && c <= UP_MAX[k], k + ' at ' + a); p = c; } assert.strictEqual(p, UP_MAX[k]); }
+    assert.ok(!run({}, { g: { ucv: 1, up: { val: 20 } } }).hard.length, 'at the cap');
+    assert.ok(run({}, { g: { ucv: 1, up: { val: 21 } } }).hard.includes('upgrade cap val'), 'over the cap with a current client');
+    const old = run({}, { g: { up: { val: 21 } } });
+    assert.ok(!old.hard.length && old.soft.includes('upgrade cap val'), 'an old client that has not clamped yet');
+    assert.ok(!run({ asc: 5 }, { g: { ucv: 1, up: { val: 35 } } }).hard.length, 'the cap rose with ascensions');
+    assert.ok(run({}, { g: { up: { val: 51 } } }).hard.includes('upgrade val'), 'above the final max is always hard');
+  });
+  await t('farm and food: slots, no crew+farm, and Food is bounded', async () => {
+    const { inspect } = require('../lib/cheat'), now = Date.now();
+    const run = (o, x) => { const b = mk(o, x); return inspect(b, JSON.parse(b.save), null, now); };
+    const two = [[1, 2, 0, 1, 0, 0, 0, 1], [2, 1, 0, 1, 0, 0, 0, 1]];
+    assert.ok(run({}, { faces: two }).hard.includes('too many farmers'), '2 farmers with 1 plot');
+    assert.ok(!run({}, { faces: two, g: { up: { farm: 1 } } }).hard.length, 'a second plot');
+    assert.ok(run({}, { faces: [[1, 2, 0, 1, 1, 0, 0, 1], [2, 1, 0, 1, 0, 0, 0, 0]] }).hard.includes('crew and farm'));
+    assert.ok(run({}, { g: { food: 1e13 } }).hard.includes('food'), 'above the hard ceiling');
+    assert.ok(run({}, { g: { food: -5 } }).hard.includes('food'));
+    assert.ok(run({}, { g: { food: 1e6 } }).hard.includes('food'), 'a lot of Food with nobody on the farm');
+    assert.ok(run({}, { g: { food: 100 } }).soft.includes('food'));
+    assert.ok(!run({}, { faces: two, g: { up: { farm: 1 }, food: 5000 } }).soft.includes('food'), 'Food the farmers could have grown');
+  });
+  await t('client upMax and UP_FULL_ASC match lib/cheat.js upCap', async () => {
+    const cheat = require('../lib/cheat');
+    const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'index.html'), 'utf8');
+    const fn = /function upMax\(k,a\)\{[^\n]*\}/.exec(html), fa = /UP_FULL_ASC=(\d+)/.exec(html);
+    assert.ok(fn && fa, 'client has upMax and UP_FULL_ASC');
+    assert.strictEqual(+fa[1], cheat.UP_FULL_ASC);
+    const UPS = {}; for (const k of Object.keys(cheat.UP_MAX)) UPS[k] = { max: cheat.UP_MAX[k] };
+    const upMax = new Function('UPS', 'G', 'UP_FULL_ASC', fn[0] + '; return upMax;')(UPS, { asc: 0 }, +fa[1]);
+    for (const k of Object.keys(UPS)) for (let a = 0; a <= 20; a++) assert.strictEqual(upMax(k, a), cheat.upCap(k, a), k + ' at ascension ' + a);
   });
   await t('lib/cheat.js economy tables match the client (RAR, MUT, UPS, ASC_REQ)', async () => {
     const cheat = require('../lib/cheat'), { ASC_REQ } = require('../lib/util');
