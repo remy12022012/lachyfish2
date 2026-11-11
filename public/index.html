@@ -254,13 +254,26 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 #updov .ut{font-family:var(--fd);font-size:24px;letter-spacing:.8px;margin-bottom:6px}
 #updov p{margin:0 0 12px;font-size:14px;font-weight:500}
 @media (max-height:480px){#updov .uc{padding:8px 12px 10px}#updov .ut{font-size:20px;margin-bottom:3px}#updov p{margin-bottom:8px;font-size:13px}}
+/* ---------- Panel: big vertical buttons, one drawer open at a time to their left ---------- */
+#panel{width:clamp(92px,9.5vw,128px);position:relative;border-left-width:5px}
+#tabs{flex:1;min-height:0;display:flex;flex-direction:column;gap:clamp(4px,1vh,10px);padding:clamp(5px,1.2vh,10px) 7px;overflow-y:auto;overflow-x:hidden}
+.tab{flex:1 1 0;min-height:36px;max-height:92px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;font-size:clamp(11px,2vh,16px);line-height:1;border-radius:16px;border-width:4px}
+.tab i{font-style:normal;font-size:clamp(16px,3.6vh,34px);line-height:1}
+.tab span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#drawer{display:none;position:absolute;right:100%;top:0;bottom:0;width:clamp(280px,34vw,460px);max-width:calc(100vw - 108px);flex-direction:column;background:radial-gradient(circle at 2px 2px,rgba(255,255,255,.08) 1.6px,transparent 2.2px) 0 0/18px 18px,linear-gradient(#4a1a99,#1f0b5c);border-left:5px solid #1a0a4a;box-shadow:-8px 0 26px rgba(130,70,255,.55);animation:dopen .18s ease-out}
+#drawer.open{display:flex}
+#dhead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:linear-gradient(#6b3ccc,#4a22a0);border-bottom:3px solid #1a0a4a}
+#dtitle{font-family:var(--fd);font-weight:400;font-size:18px;letter-spacing:.8px;color:#ffe36b;text-shadow:0 2px 0 #1a0a4a}
+@keyframes dopen{from{opacity:0;transform:translateX(30px)}}
+.perf2 #drawer{animation:none}
+@media (max-height:480px){#dhead{padding:3px 8px}#dtitle{font-size:15px}}
 </style>
 </head>
 <body>
 <div id='app'>
 <div id='stage'>
 <canvas id='c' tabindex='0'></canvas>
-<div id='hud'><span id='views'><button class='btn vb on' id='vFish'>&#127907; Fishing</button><button class='btn vb' id='vCrew' title='Your crew fishing for you (key C)'>&#128101; Crew <span id='ccount'></span></button><button class='btn vb' id='vBase'>&#127968; Base <span id='bcount'></span></button></span><span class='pill' id='coins' title='Your coins. Spend them in the Shop.'></span><span class='pill rate' id='rate' title='Coins earned per second by all your faces'></span><span class='pill gem' id='gems' style='display:none'></span><span class='pill fz' id='fz' style='display:none'></span><span class='pill cmb' id='cmb' style='display:none'></span><span class='pill wx' id='wxp' style='display:none'></span><span class='pill bf' id='bfp' style='display:none'></span><button class='btn gold can' id='daily' style='display:none'>&#127873; Daily</button><button class='btn' id='snd' title='Sound on / off'>&#128266;</button></div>
+<div id='hud'><span id='views'><button class='btn vb on' id='vFish'>&#127907; Fishing</button><button class='btn vb' id='vCrew' title='Your crew fishing for you (key C)'>&#128101; Crew <span id='ccount'></span></button><button class='btn vb' id='vBase'>&#127968; Base <span id='bcount'></span></button><button class='btn vb' id='vFarm' title='Your farm: faces growing Food (key F)'>&#127806; Farm <span id='fcount'></span></button></span><span class='pill' id='coins' title='Your coins. Spend them on Upgrades.'></span><span class='pill rate' id='rate' title='Coins earned per second by all your faces'></span><span class='pill gem' id='gems' style='display:none'></span><span class='pill fz' id='fz' style='display:none'></span><span class='pill cmb' id='cmb' style='display:none'></span><span class='pill wx' id='wxp' style='display:none'></span><span class='pill bf' id='bfp' style='display:none'></span><button class='btn gold can' id='daily' style='display:none'>&#127873; Daily</button><button class='btn' id='snd' title='Sound on / off'>&#128266;</button></div>
 <div id='hint'>&#128070; Click the water to catch faces!</div>
 <div id='banner'></div>
 <div id='toast'></div>
@@ -269,18 +282,18 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 <div id='tut'></div>
 </div>
 <div id='panel'>
+<div id='drawer'><div id='dhead'><b id='dtitle'></b><button class='mini' id='dclose' title='Close'>&#10005;</button></div><div id='body'></div></div>
 <div id='tabs'>
-<button class='tab on' data-tab='faces'>&#128031;<br>Faces</button>
-<button class='tab' data-tab='shop'>&#128722;<br>Shop</button>
-<button class='tab' data-tab='crew'>&#127907;<br>Crew</button>
-<button class='tab' data-tab='farm'>&#127806;<br>Farm</button>
-<button class='tab' data-tab='quests'>&#127919;<br>Quests</button>
-<button class='tab' data-tab='book'>&#128214;<br>Book</button>
-<button class='tab' data-tab='stats'>&#128202;<br>Stats</button>
-<button class='tab' data-tab='asc'>&#127775;<br>Ascend</button>
-<button class='tab' data-tab='top'>&#127942;<br>Top</button>
+<button class='tab' data-tab='faces'><i>&#128031;</i><span>Faces</span></button>
+<button class='tab' data-tab='shop'><i>&#128736;</i><span>Upgrades</span></button>
+<button class='tab' data-tab='crew'><i>&#127907;</i><span>Crew</span></button>
+<button class='tab' data-tab='farm'><i>&#127806;</i><span>Farm</span></button>
+<button class='tab' data-tab='quests'><i>&#127919;</i><span>Quests</span></button>
+<button class='tab' data-tab='book'><i>&#128214;</i><span>Book</span></button>
+<button class='tab' data-tab='stats'><i>&#128202;</i><span>Stats</span></button>
+<button class='tab' data-tab='asc'><i>&#127775;</i><span>Ascend</span></button>
+<button class='tab' data-tab='top'><i>&#127942;</i><span>Top</span></button>
 </div>
-<div id='body'></div>
 </div>
 <div id='updov' role='alertdialog' aria-modal='true'><div class='uc'><div class='ut'>&#127881; Update required</div><p id='updmsg'></p><button class='btn gold' id='updgo'>Reload now</button></div></div>
 <div id='gate' role='dialog' aria-modal='true'><div class='gc'><div class='gt'>&#127907; Lachy Fish</div><p>Create an account or sign in to play. Your progress is saved to the cloud and you get a place on the leaderboard.</p><input class='acf' id='gu' maxlength='16' placeholder='Username' autocomplete='username'><input class='acf' id='gp' type='password' maxlength='72' placeholder='Password (6+ characters)' autocomplete='current-password'><div class='gb'><button class='btn gold' id='gsu'>Create account</button><button class='btn green' id='gli'>Sign in</button></div><div id='gmsg'></div><button class='gskip' id='gsk'>Play offline for now</button></div></div>
@@ -356,6 +369,7 @@ soil:{n:'Rich Soil',i:'&#127793;',col:'#6fcf5a',d:'+20% Food per level.',b:350,g
 feed:{n:'Cheap Feed',i:'&#129364;',col:'#ffb86b',d:'-3% Food cost of level-ups per level.',b:500,g:2.4,max:25,eff:function(){return 'Level-up cost: '+Math.round(feedMult()*100)+'%';}}};
 var UK=['auto','quick','luck','mut','val','multi','crew','cap','guard'];
 var FUK=['farm','soil','feed'];
+var CUK=['crew'];
 var BAITS={luck:{n:'Lucky Bait',i:'&#127843;',col:'#5cf27a',d:'Boosts Rare+ odds for 60s (diminishing returns)',b:400,m:80},mut:{n:'Mutation Bait',i:'&#128302;',col:'#ff5ac8',d:'+25% mutation chance for 60s',b:500,m:90},cash:{n:'Golden Bait',i:'&#128176;',col:'#ffd23f',d:'Cash x2 for 60s',b:600,m:110}};
 var WX=[{n:'Rainfall',i:'&#9748;',col:'#7dd3ff',d:'Mutations x2.5',mut:2.5},{n:'Aurora',i:'&#127756;',col:'#c66bff',d:'Rare+ luck boost',luck:2},{n:'Golden Hour',i:'&#9728;',col:'#ffd23f',d:'Cash x2',cash:2}];
 var QT=[{k:'catch',t:'Catch %n faces',b:[20,40,80]},{k:'rare',t:'Catch %n Rare+ faces',b:[5,10,20]},{k:'epic',t:'Catch %n Epic+ faces',b:[1,2,4]},{k:'mut',t:'Catch %n mutated faces',b:[2,4,8]},{k:'pop',t:'Pop %n bonus bubbles or chests',b:[1,2,3]},{k:'earn',t:'Earn %n',b:null}],QTK={};
@@ -444,7 +458,7 @@ function newG(){return {coins:0,run:0,food:0,ucv:1,gems:0,asc:0,up:{auto:0,quick
 var G=newG(),faces=[],hooks=[],parts=[],ftx=[],ambient=[],bubble=null;
 var skyTop=0,W=300,H=300,dpr=1,t=0,y0=100,HB=40,bg=null,tinted=[],rbT=[],tintedU=[],rbTU=[],auras={};
 var down=false,mx=0,my=0,cd=0,frenzy=0,evT=3600,bubT=1500,flash=0,shake=0,autoAcc=0,bannerCd=0,curInc=0,disc=0,flashCol='#fff',beams=[],sprC={};
-var tab='faces',dirty=true,pressPanel=false,wipeArm=false,actx=null,tToast=null;
+var tab='',dirty=true,pressPanel=false,wipeArm=false,actx=null,tToast=null;
 var wx=null,combo=0,comboT=0,chest=null,chestT=5400,wxT=7200;
 // Tides rotate on their own timer, separate from the weather: Calm -> a random active tide (60s) -> Calm.
 var TIDES=[{n:'Calm',i:'&#127754;',col:'#9fd8ff',d:'The sea is quiet',luck:1,cash:1,mut:1,cast:0},
@@ -455,7 +469,7 @@ var tide=0,tideT=2400,tideMax=2400,raidT=10800;
 function tideNow(){return TIDES[tide]||TIDES[0];}
 function setTide(i,fr){tide=i;tideMax=tideT=fr||(i?3600:rnd(2400,4200)|0);}
 var loading=true,welcome=0,nbAnim=null;
-var view='fish',baseScroll=0,baseMax=0,bdrag=null,selId=0,selHtml='',recent=[],sinkers=[],ultraAnim=null,bgBase=null,cells=[];
+var view='fish',baseScroll=0,baseMax=0,bdrag=null,selId=0,selHtml='',recent=[],sinkers=[],ultraAnim=null,bgBase=null,bgFarm=null,cells=[];
 
 // ---------- ECONOMY ----------
 function faceInc(f){return RAR[f.rar].inc*MUT[f.mut].m*0.7*(1+0.35*(f.lvl-1));}
@@ -762,7 +776,7 @@ function step(){
   var gm=gMult(),i,f,inc=0,fz=frenzy>0?3:1;
   if(down&&cd<=0&&!pressPanel)castAt(mx,my);
   layoutCrew();
-  if(view==='base')layoutBase();
+  if(grid())layoutBase();
   if(ultraAnim)stepUltra();
   for(i=0;i<faces.length;i++){
     f=faces[i];
@@ -870,7 +884,7 @@ function resize(){
   HB=Math.max(24,Math.min(56,H*0.115));
   hintEl.style.top=(y0+46)+'px';
   buildBg();initAmbient();
-  buildBgBase();if(view==='base')layoutBase();
+  buildBgBase();if(grid())layoutBase();
 }
 function waveY(x,k){return y0+Math.sin(x*0.022+t*0.045+k)*3+Math.sin(x*0.051-t*0.07+k*2)*1.8;}
 function waterPath(k){ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(0,waveY(0,k));for(var x=6;x<W+6;x+=6)ctx.lineTo(x,waveY(x,k));ctx.lineTo(W,H);ctx.closePath();}
@@ -1060,6 +1074,7 @@ function drawParts(){
 }
 // ---------- BASE / ULTRA ----------
 var BTOP=60;
+function grid(){return view==='base'||view==='farm';}
 function bumpBase(){var b=$('vBase');b.classList.remove('bump');void b.offsetWidth;b.classList.add('bump');}
 function moveFace(f){
   if(!f.air)return;
@@ -1086,7 +1101,7 @@ function sortedCells(){
   return faces.filter(function(f){return !f.air;}).sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl||a.id-b.id;});
 }
 function layoutBase(){
-  cells=sortedCells();
+  cells=view==='farm'?faces.filter(function(f){return f.farm&&!f.air;}).sort(function(a,b){return farmFm(b)-farmFm(a)||a.id-b.id;}):sortedCells();
   var n=cells.length,cols=Math.max(1,Math.floor((W-8)/116)),cw=(W-8)/cols,ch=cw*1.14+46,rows=Math.ceil(n/cols),i,f,col,row,u,dw,dh,kk;
   baseMax=Math.max(0,BTOP+rows*ch+8-H);
   baseScroll=clamp(baseScroll,0,baseMax);
@@ -1101,17 +1116,18 @@ function layoutBase(){
     f.fl=Math.cos(t*0.021+f.ph)<0;f.rot=Math.sin(t*0.03+f.ph)*0.07;
   }
 }
-function buildBgBase(){
-  bgBase=document.createElement('canvas');bgBase.width=Math.round(W*dpr);bgBase.height=Math.round(H*dpr);
-  var g=bgBase.getContext('2d'),i,gr,x,y;g.scale(dpr,dpr);
-  gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#3a1480');gr.addColorStop(0.5,'#2a0f66');gr.addColorStop(1,'#14063d');g.fillStyle=gr;g.fillRect(0,0,W,H);
+function buildBgBase(){bgBase=mkBgGrid(0);bgFarm=mkBgGrid(1);}
+function mkBgGrid(k){
+  var cv=document.createElement('canvas');cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  var g=cv.getContext('2d'),i,gr,x,y,c=k?['#1f6a30','#164a22','#0a2812']:['#3a1480','#2a0f66','#14063d'];g.scale(dpr,dpr);
+  gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,c[0]);gr.addColorStop(0.5,c[1]);gr.addColorStop(1,c[2]);g.fillStyle=gr;g.fillRect(0,0,W,H);
   g.strokeStyle='rgba(255,255,255,.05)';g.lineWidth=2;
   for(i=-H;i<W+H;i+=40){g.beginPath();g.moveTo(i,0);g.lineTo(i+H,H);g.stroke();g.beginPath();g.moveTo(i+H,0);g.lineTo(i,H);g.stroke();}
   g.globalCompositeOperation='lighter';
   for(i=0;i<5;i++){var sx=(i+0.5)*W/5;gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'rgba(255,225,150,.2)');gr.addColorStop(1,'rgba(255,225,150,0)');g.fillStyle=gr;g.beginPath();g.moveTo(sx-6,0);g.lineTo(sx+6,0);g.lineTo(sx+W*0.1,H);g.lineTo(sx-W*0.1,H);g.closePath();g.fill();}
   g.globalCompositeOperation='source-over';
   if(ready()){var tw=70,th=tw*1.345;g.globalAlpha=0.045;for(y=BTOP;y<H;y+=th*1.1)for(x=((y/th)|0)%2?-tw/2:0;x<W;x+=tw*1.2)g.drawImage(img,x,y,tw,th);g.globalAlpha=1;}
-  gr=g.createLinearGradient(0,0,0,BTOP);gr.addColorStop(0,'rgba(8,0,30,.7)');gr.addColorStop(1,'rgba(8,0,30,0)');g.fillStyle=gr;g.fillRect(0,0,W,BTOP);
+  gr=g.createLinearGradient(0,0,0,BTOP);gr.addColorStop(0,'rgba(8,0,30,.7)');gr.addColorStop(1,'rgba(8,0,30,0)');g.fillStyle=gr;g.fillRect(0,0,W,BTOP);return cv;
 }
 function drawPedestal(f){
   var cw=f.cw2,cx=f.cellX,py=f.pedY,col=faceCol(f),pw=cw*0.66,ph=cw*0.15,ey=ph*0.32,pul=0.5+0.5*Math.sin(t*0.08+f.ph),g;
@@ -1126,17 +1142,17 @@ function drawPedestal(f){
 function drawPlate(f){
   var cx=f.cellX,cw=f.cw2,y=f.pedY+cw*0.15+14,nm=faceName(f),sz=nm.length>13?9.5:11;
   txt(nm,cx,y,faceCol(f),sz,1);
-  txt('$'+fmt(faceInc(f)*gMult())+'/s',cx,y+14,'#7dff9e',12,1);
-  txt('earned $'+fmt(f.tot||0),cx,y+27,'#ffe36b',10,1);
+  if(view==='farm')txt(fmt(farmFm(f))+' Food/s',cx,y+14,'#b6ff6b',12,1);else txt('$'+fmt(faceInc(f)*gMult())+'/s',cx,y+14,'#7dff9e',12,1);
+  if(view==='farm')txt('$'+fmt(faceInc(f)*gMult())+'/s coins',cx,y+27,'#ffe36b',10,1);else txt('earned $'+fmt(f.tot||0),cx,y+27,'#ffe36b',10,1);
   txt('Lv '+f.lvl,cx-cw*0.34,f.cellY+13,'#fff',9.5,0.95);
   if(f.crew)txt('CREW',cx+cw*0.34,f.cellY+13,'#7dd3ff',9.5,1);
   else if(f.farm)txt('FARM',cx+cw*0.34,f.cellY+13,'#8bdc4a',9.5,1);
   else if(f.lock)txt('LOCKED',cx+cw*0.32,f.cellY+13,'#ffd23f',9,1);
 }
 function drawBase(){
-  ctx.drawImage(bgBase,0,0,W,H);
+  ctx.drawImage(view==='farm'?bgFarm:bgBase,0,0,W,H);
   var i,f,n=cells.length;
-  if(!n){txt('Your base is empty!',W/2,H*0.42,'#ffe36b',22,1);txt('Go fishing to catch faces',W/2,H*0.42+28,'#fff',14,1);return;}
+  if(!n){if(view==='farm'){txt('Your farm is empty!',W/2,H*0.42,'#b6ff6b',22,1);txt('Press the plant button on a face in Faces',W/2,H*0.42+28,'#fff',14,1);return;}txt('Your base is empty!',W/2,H*0.42,'#ffe36b',22,1);txt('Go fishing to catch faces',W/2,H*0.42+28,'#fff',14,1);return;}
   for(i=0;i<n;i++){
     f=cells[i];
     if(f.cellY>H+4||f.cellY+f.chh<BTOP-30)continue;
@@ -1160,18 +1176,18 @@ function baseClick(x,y){
   selId=0;selRefresh();
 }
 function selRefresh(){
-  var el=$('sel'),f=(view==='base'&&selId)?faceById(selId):null,h;
-  if(!f){if(selHtml){el.style.display='none';el.innerHTML='';selHtml='';}if(view==='base')selId=0;return;}
+  var el=$('sel'),f=(grid()&&selId)?faceById(selId):null,h;
+  if(!f){if(selHtml){el.style.display='none';el.innerHTML='';selHtml='';}if(grid())selId=0;return;}
   h=faceCard(f);h=h.slice(0,-12)+`<button class='mini on' data-a='selx'>&#10005;</button></div></div>`;
   if(h!==selHtml){el.innerHTML=h;selHtml=h;affordPass();}
   el.style.display='block';
 }
 function setView(v){
   view=v;bdrag=null;
-  $('vFish').classList.toggle('on',v==='fish');$('vCrew').classList.toggle('on',v==='crew');$('vBase').classList.toggle('on',v==='base');
-  canvas.style.cursor=v==='base'?'grab':'crosshair';
+  $('vFish').classList.toggle('on',v==='fish');$('vCrew').classList.toggle('on',v==='crew');$('vBase').classList.toggle('on',v==='base');$('vFarm').classList.toggle('on',v==='farm');
+  canvas.style.cursor=(v==='base'||v==='farm')?'grab':'crosshair';
   hintEl.style.display=(v==='fish'&&G.caught===0)?'':'none';
-  if(v==='base'){baseScroll=0;layoutBase();}else{selId=0;}
+  if(v==='base'||v==='farm'){selId=0;baseScroll=0;layoutBase();}else{selId=0;}
   selRefresh();dirty=true;
 }
 // ---------- NEW BEST ANIMATION ----------
@@ -1481,7 +1497,7 @@ function draw(){
   var i;
   ctx.save();
   if(shake>0&&!PF())ctx.translate(rnd(-1,1)*shake*0.35,rnd(-1,1)*shake*0.35);
-  if(view==='base')drawBase();else drawFish();
+  if(grid())drawBase();else drawFish();
   drawParts();
   for(i=0;i<ftx.length;i++){var ft=ftx[i];txt(ft.s,ft.x,ft.y,ft.col,ft.size,Math.min(1,ft.life/20),ft.fam);}
   if(ultraAnim)drawUltra();if(nbAnim)drawNB();
@@ -1497,7 +1513,7 @@ function hudTick(){
   gemsEl.style.display=G.gems>0?'':'none';gemsEl.innerHTML='&#128142; '+G.gems;
   var fdp=$('fdp');
   if(!fdp&&gemsEl.parentNode){fdp=document.createElement('span');fdp.className='pill';fdp.id='fdp';fdp.title='Food: pays for face level-ups. Grown by faces on the Farm.';gemsEl.parentNode.insertBefore(fdp,gemsEl);}
-  if(fdp)fdp.innerHTML='&#127806; '+fmt(G.food);
+  if(fdp)fdp.innerHTML='&#127806; '+fmt(G.food)+' (+'+fmt(farmRate())+'/s)';
   fzEl.style.display=frenzy>0?'':'none';fzEl.innerHTML='&#127881; FRENZY '+Math.ceil(frenzy/60)+'s';
   var cp=$('cmb'),wp=$('wxp'),bp=$('bfp'),bs=[],bk;
   cp.style.display=combo>=3?'':'none';cp.innerHTML='&#128293; COMBO x'+combo;
@@ -1507,7 +1523,7 @@ function hudTick(){
   wp.style.display=wx?'':'none';if(wx)wp.innerHTML=WX[wx.id].i+' '+WX[wx.id].n+' '+Math.ceil(wx.t/60)+'s';
   for(bk in BAITS)if(G.bf[bk]>0)bs.push(BAITS[bk].i+Math.ceil(G.bf[bk])+'s');
   bp.style.display=bs.length?'':'none';bp.innerHTML=bs.join(' ');
-  $('bcount').textContent=faces.length+'/'+capN();$('ccount').textContent=crewList().length+'/'+slots();var dy=$('daily');if(dy)dy.style.display=dailyReady()?'':'none';selRefresh();tutTick();
+  $('bcount').textContent=faces.length+'/'+capN();$('ccount').textContent=crewList().length+'/'+slots();$('fcount').textContent=farmList().length+'/'+farmSlots();var dy=$('daily');if(dy)dy.style.display=dailyReady()?'':'none';selRefresh();tutTick();
 }
 function affordPass(){
   var bs=document.querySelectorAll('button[data-cost],button[data-food]');
@@ -1552,10 +1568,11 @@ function upCard(k){
   var u=UPS[k],l=G.up[k],pl=upPlan(k),c=pl.c,cap=upMax(k),atCap=l>=cap,isFin=cap>=u.max,nx=upMax(k,(G.asc|0)+1);
   return `<div class='card shopc' style='--rc:${u.col}'><div class='ic'>${u.i}</div><div class='info'><b>${u.n} <em>Lv ${l}${atCap&&isFin?' MAX':'/'+cap}</em></b><small>${u.d}</small><small style='color:${u.col}'>${u.eff()}</small>${isFin?'':`<small>Cap rises with every ascension (next ${nx}, final ${u.max})</small>`}<div class='bar'><i style='width:${Math.min(100,l/Math.max(1,cap)*100)}%'></i></div></div>${atCap?`<button class='btn buy cant'>${isFin?'MAX':'CAP'}</button>`:`<button class='btn gold buy' data-a='up' data-k='${k}' data-cost='${c}'>${pl.n>1?'x'+pl.n+' ':''}$${fmt(c)}</button>`}</div>`;
 }
+function buyBar(){return `<div class='tools'><span style='align-self:center;font-size:11px'>Buy:</span><button class='btn seg${G.buy===1?' on':''}' data-a='buymode' data-v='1'>x1</button><button class='btn seg${G.buy===10?' on':''}' data-a='buymode' data-v='10'>x10</button><button class='btn seg${G.buy===0?' on':''}' data-a='buymode' data-v='0'>MAX</button></div>`;}
 function shopHtml(){
   var h=baitHtml()+`<div class='sech'>&#128736; Upgrades</div><div class='tools'><span style='align-self:center;font-size:11px'>Buy:</span><button class='btn seg${G.buy===1?' on':''}' data-a='buymode' data-v='1'>x1</button><button class='btn seg${G.buy===10?' on':''}' data-a='buymode' data-v='10'>x10</button><button class='btn seg${G.buy===0?' on':''}' data-a='buymode' data-v='0'>MAX</button></div>`,i,k,u,l,c,mx2,pl;
   for(i=0;i<UK.length;i++){
-    h+=upCard(UK[i]);
+    if(CUK.indexOf(UK[i])<0)h+=upCard(UK[i]);
   }
   return h;
 }
@@ -1566,7 +1583,7 @@ function crewHtml(){
     h+=`<div class='card r${f.rar}'><div class='fi m${f.mut}${spCls(f.rar)}'></div><div class='info'><b class='${isRb(f.rar)?'rbt':''}${nmCls(f.rar)}'>${faceName(f)}</b><small>Lv ${f.lvl} &bull; ${crewFm(f).toFixed(2)} casts/s</small></div><div class='acts'><button class='mini on' data-a='crew' data-id='${f.id}'>Remove from crew</button></div></div>`;
   }
   for(i=list.length;i<slots();i++)h+=`<div class='card empty'>Empty slot: click &#127907; on a face</div>`;
-  return h+`<div class='note'>Crew faces stand on the dock and fish for you. Rarer and higher level means faster. Buy more slots in the Shop.</div>`;
+  return h+`<div class='note'>Crew faces stand on the dock and fish for you. Rarer and higher level means faster. Buy more Crew Slots with the upgrade below.</div><div class='sech'>&#128101; Crew upgrades</div>`+buyBar()+upCard('crew');
 }
 function farmHtml(){
   var list=farmList(),i,f,h=`<div class='note'>&#127806; Farm <b>${list.length}/${farmSlots()}</b> &bull; <b>${fmt(farmRate())}</b> Food/s &bull; Food stored <b>${fmt(G.food)}</b></div><div class='tools'><button class='btn green' data-a='autofarm'>&#9733; Auto-pick best</button><button class='btn red' data-a='clearfarm'>Clear</button></div>`;
@@ -1627,10 +1644,16 @@ function statsHtml(){
   h+=srow('Cast a line','Space or click');
   h+=srow('Switch tabs','1 - 9');
   h+=srow('Fishing / Base view','B');
+  h+=srow('Farm view','F');
   return h;
 }
+var TABT={faces:'Faces',shop:'Upgrades',crew:'Crew',farm:'Farm',quests:'Quests',book:'Book',stats:'Stats',asc:'Ascend',top:'Top'};
 function render(){
-  var st=body.scrollTop,h='';
+  var st=body.scrollTop,h='',tb0=document.querySelectorAll('.tab'),i0;
+  for(i0=0;i0<tb0.length;i0++)tb0[i0].classList.toggle('on',tb0[i0].dataset.tab===tab);
+  $('drawer').classList.toggle('open',!!tab);
+  if(!tab){dirty=false;return;}
+  $('dtitle').textContent=TABT[tab]||'';
   if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='farm')h=farmHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else h=ascHtml();
   body.innerHTML=h;body.scrollTop=st;
   var tb=document.querySelectorAll('.tab');
@@ -1887,10 +1910,10 @@ function topHtml(){
 
 // ---------- ACTIONS ----------
 function faceById(id){for(var i=0;i<faces.length;i++)if(faces[i].id===id)return faces[i];return null;}
-function fxPos(f){if(view!=='base')return f.crew?[f.cx,f.cy]:[W/2,y0+40];return [f.x,f.y];}
+function fxPos(f){if(!grid())return f.crew?[f.cx,f.cy]:[W/2,y0+40];return [f.x,f.y];}
 function sellFace(f){var v=sellValue(f),p=fxPos(f);earn(v);floatText(p[0],p[1],'+$'+fmt(v),'#ffe36b',14);spark(p[0],p[1],'#ffd23f',8,2,0,0.05);removeFace(f);tone(700,0.1,'square',0.04);}
 function setCrew(f,on){
-  if(on){if(crewList().length>=slots()){toast('Crew is full! Buy more slots in the Shop.');return;}f.farm=false;f.crew=true;f.air=false;}
+  if(on){if(crewList().length>=slots()){toast('Crew is full! Buy Crew Slots in the Crew tab.');return;}f.farm=false;f.crew=true;f.air=false;}
   else{f.crew=false;f.x=f.cx||W/2;f.y=y0+30;pickTarget(f);}
   dirty=true;
 }
@@ -1967,16 +1990,17 @@ function onAct(e){
   dirty=true;render();hudTick();selRefresh();
 }
 body.addEventListener('click',onAct);$('sel').addEventListener('click',onAct);
-function gotoTab(x){tab=x;wipeArm=false;ascArm=false;body.scrollTop=0;render();}
-(function(){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].title=tb[i].dataset.tab+' ('+(i+1)+')';})();
+function gotoTab(x){tab=(tab===x)?'':x;wipeArm=false;ascArm=false;body.scrollTop=0;render();}
+(function(){var tb=document.querySelectorAll('.tab'),i;for(i=0;i<tb.length;i++)tb[i].title=(TABT[tb[i].dataset.tab]||'')+' ('+(i+1)+')';})();
 $('tabs').addEventListener('click',function(e){
   var b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(b&&b.dataset&&b.dataset.tab)gotoTab(b.dataset.tab);
 });
+$('dclose').onclick=function(){gotoTab(tab);};
 $('daily').onclick=claimDaily;
 $('snd').onclick=function(){G.mute=G.mute?0:1;this.innerHTML=G.mute?'&#128263;':'&#128266;';};
 $('panel').addEventListener('pointerdown',function(){pressPanel=true;});
-$('vFish').onclick=function(){setView('fish');};$('vCrew').onclick=function(){setView('crew');};$('vBase').onclick=function(){setView('base');};
+$('vFish').onclick=function(){setView('fish');};$('vCrew').onclick=function(){setView('crew');};$('vBase').onclick=function(){setView('base');};$('vFarm').onclick=function(){setView('farm');};
 
 // ---------- TUTORIAL ----------
 // A short guided intro. Steps advance by themselves when the player does the thing, and every step also has Next and Skip. Progress lives in G.tut (99 = finished or skipped).
@@ -1984,7 +2008,7 @@ var tutShown=-1;
 var TUT=[
 {t:'Welcome to Lachy Fish!',d:'Click anywhere on the water to cast a line and catch a face. Hold the mouse button or press Space to keep casting.',ok:function(){return G.caught>=1;}},
 {t:'Faces pay you every second',d:'Every face in your base earns coins, and rarer or higher-level faces earn more. Catch a few more to build up some cash.',ok:function(){return G.caught>=5;}},
-{t:'Spend coins in the Shop',d:'Open the Shop tab (key 2) and buy your first upgrade. Auto Fish casts a line for you, Quick Fish shortens the click cooldown.',tab:'shop',ok:function(){var k,s=0;for(k in G.up)s+=G.up[k];return s>=1;}},
+{t:'Spend coins on Upgrades',d:'Open the Upgrades tab (key 2) and buy your first upgrade. Auto Fish casts a line for you, Quick Fish shortens the click cooldown.',tab:'shop',ok:function(){var k,s=0;for(k in G.up)s+=G.up[k];return s>=1;}},
 {t:'Put a face on the crew',d:'Open the Faces tab (key 1) and press the rod button on a face. Crew faces stand on the dock and fish for you.',tab:'faces',ok:function(){return crewList().length>=1;}},
 {t:'Grow Food on the Farm',d:'Open the Farm tab (key 4) and press the plant button on a face in the Faces tab. Farm faces grow Food instead of fishing, and Food is what pays for level-ups.',tab:'farm',ok:function(){return farmList().length>=1;}},
 {t:'Level and sell',d:'In the Faces tab you can level a face up with Food (grown on the Farm) or sell extras for coins. Lock a face to protect it from selling.',tab:'faces'},
@@ -2018,14 +2042,14 @@ canvas.addEventListener('pointerdown',function(e){
   try{canvas.focus();}catch(_){}
   if(ultraAnim){down=false;if(ultraAnim.t>140)ultraAnim.t=Math.max(ultraAnim.t,ultraAnim.dur-45);return;}
   if(nbAnim&&nbAnim.t>45)nbAnim.t=Math.max(nbAnim.t,nbAnim.dur-20);
-  if(view!=='base'&&rockHit(mx,my)){down=false;try{e.preventDefault();}catch(_){}rockTap();return;}
-  if(view==='base'){bdrag={x:mx,y0:my,s:baseScroll,moved:0};down=false;return;}
+  if(!grid()&&rockHit(mx,my)){down=false;try{e.preventDefault();}catch(_){}rockTap();return;}
+  if(grid()){bdrag={x:mx,y0:my,s:baseScroll,moved:0};down=false;return;}
   if(bubble&&Math.hypot(mx-bubble.x,my-bubble.y)<bubble.r+12){popBubble();down=false;return;}
   if(chest&&Math.hypot(mx-chest.x,my-chest.y)<34){openChest();down=false;return;}
   castAt(mx,my);
 });
 canvas.addEventListener('pointermove',function(e){pos(e);if(bdrag){var dy=my-bdrag.y0;if(Math.abs(dy)>6)bdrag.moved=1;if(bdrag.moved)baseScroll=clamp(bdrag.s-dy,0,baseMax);}});
-canvas.addEventListener('wheel',function(e){if(view==='base'){e.preventDefault();baseScroll=clamp(baseScroll+e.deltaY,0,baseMax);}},{passive:false});
+canvas.addEventListener('wheel',function(e){if(grid()){e.preventDefault();baseScroll=clamp(baseScroll+e.deltaY,0,baseMax);}},{passive:false});
 window.addEventListener('pointerup',function(){down=false;pressPanel=false;if(bdrag){var b=bdrag;bdrag=null;if(!b.moved)baseClick(b.x,b.y0);}});
 canvas.addEventListener('pointercancel',function(){down=false;bdrag=null;});
 window.addEventListener('keydown',function(e){
@@ -2034,6 +2058,7 @@ window.addEventListener('keydown',function(e){
   if(e.key===' '){e.preventDefault();castAt(mx||W/2,my||y0+60);}
   else if(e.key>='1'&&e.key<='9'){gotoTab(['faces','shop','crew','farm','quests','book','stats','asc','top'][+e.key-1]);}
   else if(e.key==='b'||e.key==='B'){setView(view==='base'?'fish':'base');}
+  else if(e.key==='f'||e.key==='F'){setView(view==='farm'?'fish':'farm');}
   else if(e.key==='c'||e.key==='C'){setView(view==='crew'?'fish':'crew');}
 });
 
