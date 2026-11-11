@@ -16,7 +16,8 @@ Then open the game, go to the **Top** tab, sign up, and your account appears on 
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /api/signup`, `POST /api/login` | Accounts. Passwords are hashed with scrypt; sessions are random 256-bit tokens kept 90 days. |
+| `POST /api/signup`, `POST /api/login` | Accounts. Passwords are hashed with scrypt; sessions are random 256-bit tokens kept 90 days. Signup is limited to 10 per hour and 25 per day per IP, and 400 per hour across the whole site. |
+| `POST /api/password` | Any signed-in player changes their own password. Body `{oldPassword, newPassword}` (6-72 characters, different from the old one). A wrong old password answers 403 (not 401, so the game does not sign the player out). Limited to 5 tries per 15 minutes per account and 20 per IP. On success every other session is ended and a fresh token is returned for the current device. In the game: **Top** tab, **Change password**. |
 | `GET /api/me` | Your rank and cloud save. |
 | `POST /api/submit` | The game syncs money, income, ascensions, book, best faces and the cloud save (every 30 s while signed in, or **Sync now**). |
 | `GET /api/leaderboard?view=peak\|inc\|asc\|book` | Top 50 for each board, your rank, and the activity feed. |
@@ -26,6 +27,19 @@ Then open the game, go to the **Top** tab, sign up, and your account appears on 
 Protections: strict input validation (invalid numbers are rejected with 422), peak money and ascensions can never go down, ascensions are capped at 20 and can rise by at most 2 per sync (a new account counts as 0), stats or cloud saves that contain a rarity the ascension count has not unlocked are rejected, requests from an old season are refused with 409, one sync per 5 s per player, login and signup rate limits, constant-time password checks, identical errors for unknown user and wrong password, usernames limited to letters, numbers and `_ . -` (3 to 16 characters). The game runs in the player's browser, so a determined cheater can still fake numbers; the limits stop casual abuse, not a skilled attacker.
 
 If the database is missing on Vercel, the API answers 503 with a clear message instead of silently losing data, and the game keeps working offline with its normal local saves.
+
+### Anti-cheat
+
+The server cannot replay the game, so it checks that what the client sends is *possible* (`lib/cheat.js`). Every sync must carry a valid cloud save, and the stats are compared with that save and with the time since the last accepted sync.
+
+* **Hard findings** are impossible states: an upgrade above its maximum, a face above level 20, more faces or crew than the base and slots allow, malformed Book entries, gems above the ceiling, income or cast rate far above what the faces in the save could produce, or a huge jump in coins. The sync is rejected (422 `Invalid stats.`) and the account gets a **strike**. Three strikes within 24 hours **quarantine** the account: it keeps playing and syncing, but is removed from every leaderboard until an admin clears it.
+* **Soft findings** are suspicious but possible, for example stats that do not match the save they came with, or coins, catches or gems growing faster than real time allows (playing on another device while logged out can cause this). The sync is rejected with a hint to wait and try again, and **no strike** is counted.
+* The economy tables in `lib/cheat.js` must match `RAR`, `MUT` and `UPS` in `public/index.html`; `npm test` fails if they drift apart.
+* Admin actions (same `POST /api/admin` body as above): `flags` (no username; lists recent flagged syncs and each account's strikes and quarantine state), `quarantine` (hide an account from the boards by hand), `unflag` (clear the quarantine and strikes). `reset` and `wipeall` also clear them.
+* The game also ignores a daily reward whose day is not later than the last claim, and gives no offline earnings when the saved timestamp is in the future (clock turned back).
+* Limits: coins and income are still computed on the player's device, so these checks raise the bar but cannot make cheating impossible.
+
+Keys used: `q:<name>` quarantine, `strikes:<name>` strike counter (expires after 24 h), `flagfeed` recent findings.
 
 ### Admin from the game
 

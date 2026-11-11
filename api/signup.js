@@ -7,7 +7,11 @@ module.exports = handler(['POST'], async (req, res, store) => {
   const pw = b && typeof b.password === 'string' ? b.password : '';
   if (!NAME_RE.test(name)) return send(res, 400, { error: 'Username must be 3-16 characters: letters, numbers, _ . -' });
   if (pw.length < 6 || pw.length > 72) return send(res, 400, { error: 'Password must be 6-72 characters.' });
-  if (!(await allow(store, 'signup:' + clientIp(req), 10, 3600))) return send(res, 429, { error: 'Too many new accounts from here. Try again later.' });
+  // Per-IP limits (hourly and daily) against one person farming alt accounts, plus a global hourly ceiling against bot floods.
+  const ip = clientIp(req);
+  if (!(await allow(store, 'signup:' + ip, 10, 3600)) || !(await allow(store, 'signup-day:' + ip, 25, 86400)) || !(await allow(store, 'signup-all', 400, 3600))) {
+    return send(res, 429, { error: 'Too many new accounts from here. Try again later.' });
+  }
   const lname = name.toLowerCase();
   const { salt, hash } = await hashPassword(pw);
   const ok = await store.set('u:' + lname, JSON.stringify({ name, salt, hash, created: Date.now() }), { nx: true });
