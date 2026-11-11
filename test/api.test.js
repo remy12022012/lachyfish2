@@ -529,6 +529,64 @@ async function t(name, fn) {
     assert.strictEqual(r.j.build, require('../lib/build').currentBuild());
   });
 
+  // ---- lifetime ranking, DEV tags, owner switch ----
+  let LA, LB;
+  const lsub = async (name, token, o, x) => { unlock(name); return call('POST', '/api/submit', mk(o, x), token); };
+  await t('lifetime board: the default view ranks by lifetime earnings and a client without "life" falls back to coins', async () => {
+    LA = await signupAs('life_a', 'life-pw-1', 80);
+    LB = await signupAs('life_b', 'life-pw-2', 81);
+    let r = await lsub('life_a', LA, { coins: 5e6, life: 5e6, book: 9 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    r = await lsub('life_b', LB, { coins: 2e6 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j)); // no life sent
+    const lb = await call('GET', '/api/leaderboard?n=100');
+    const names = lb.j.rows.map((x) => x.name);
+    assert.strictEqual(names[0], 'life_a');
+    assert.ok(names.indexOf('life_a') < names.indexOf('life_b'));
+    const pb = (await call('GET', '/api/leaderboard?u=life_b')).j.profile;
+    assert.strictEqual(pb.life, 2e6, 'falls back to coins');
+    assert.ok(!pb.dev, 'a normal player has no DEV tag');
+    assert.strictEqual((await call('GET', '/api/leaderboard?view=life', undefined, LA)).j.me.rank, 1);
+  });
+  await t('lifetime board: a player keeps their rank and best Book after ascending', async () => {
+    const before = (await call('GET', '/api/me', undefined, LA)).j.rank; assert.strictEqual(before, 1);
+    await age('life_a');
+    const r = await lsub('life_a', LA, { asc: 1, coins: 10, life: 5e6, book: 3 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual((await call('GET', '/api/me', undefined, LA)).j.rank, 1, 'still first after the run was reset');
+    const p = (await call('GET', '/api/leaderboard?u=life_a')).j.profile;
+    assert.strictEqual(p.life, 5e6); assert.strictEqual(p.asc, 1); assert.strictEqual(p.bookMax, 9, 'best Book ever is kept'); assert.strictEqual(p.peak, 5e6);
+    const bk = await call('GET', '/api/leaderboard?view=book');
+    assert.strictEqual(bk.j.rows[0].name, 'life_a');
+    assert.strictEqual((await call('GET', '/api/leaderboard?view=peak')).code, 200, 'the old boards still work');
+  });
+  await t('lifetime plausibility: a first sync with absurd lifetime earnings is refused', async () => {
+    const X = await signupAs('life_c', 'life-pw-3', 82);
+    const r = await lsub('life_c', X, { coins: 1000, life: 1e22 });
+    assert.strictEqual(r.code, 422, JSON.stringify(r.j));
+    assert.strictEqual((await call('GET', '/api/leaderboard?u=life_c')).code, 404, 'nothing was stored');
+  });
+  await t('DEV tags: staff and owner accounts are tagged on rows and profiles, players are not', async () => {
+    const st = (await call('POST', '/api/login', { username: 'guess_2', password: 'guess-pw-2' }, undefined, ipOf(57)));
+    assert.strictEqual(st.code, 200, JSON.stringify(st.j));
+    assert.strictEqual((await lsub('guess_2', st.j.token, { coins: 3000 })).code, 200);
+    const r = await lsub('boss_1', O, { coins: 4000 }); assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    const rows = (await call('GET', '/api/leaderboard?n=100')).j.rows, by = (n) => rows.find((x) => x.name === n);
+    assert.strictEqual(by('boss_1').dev, 'owner'); assert.strictEqual(by('guess_2').dev, 'staff');
+    assert.ok(!by('life_a').dev && !by('life_b').dev);
+    assert.strictEqual((await call('GET', '/api/leaderboard?u=boss_1')).j.profile.dev, 'owner');
+    assert.strictEqual((await call('GET', '/api/leaderboard?u=guess_2')).j.profile.dev, 'staff');
+  });
+  await t('owner switch: an owner may sync a fully maxed account, anyone else is refused', async () => {
+    const maxed = { asc: 20, bestRar: 16, book: 80, coins: 1e12, life: 1e13, inc: 1e9, top: [[16, 4, 2], [15, 0, 1]] };
+    let r = await lsub('life_b', LB, maxed);
+    assert.strictEqual(r.code, 422, 'a normal player cannot jump to 20 ascensions: ' + JSON.stringify(r.j));
+    r = await lsub('boss_1', O, maxed);
+    assert.strictEqual(r.code, 200, 'the owner can: ' + JSON.stringify(r.j));
+    const lb = await call('GET', '/api/leaderboard?n=100');
+    assert.strictEqual(lb.j.rows[0].name, 'boss_1'); assert.strictEqual(lb.j.rows[0].dev, 'owner');
+    const p = (await call('GET', '/api/leaderboard?u=boss_1')).j.profile;
+    assert.strictEqual(p.asc, 20); assert.strictEqual(p.life, 1e13);
+    assert.strictEqual((await call('GET', '/api/me', undefined, O)).j.rank, 1);
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();

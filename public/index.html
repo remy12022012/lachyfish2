@@ -161,6 +161,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 .vt{flex:1;font:inherit;font-size:11px;font-weight:900;padding:5px 2px;border-radius:9px;border:2px solid #1a0a4a;background:#3a1a8a;color:#fff;cursor:pointer}
 .vt:hover{background:#5a2bb8}
 .vt.on{background:#ffe36b;color:#1a0a4a}
+.devtag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.8px;vertical-align:middle;color:#0a2a4a;background:linear-gradient(#bfe6ff,#4db4ff);border:1.5px solid #1a0a4a;font-family:var(--fd)}.devtag.own{color:#4a2c00;background:linear-gradient(#ffe9a0,#ffb52e)}
 .lbname{font:inherit;font-weight:900;font-size:13px;background:none;border:0;padding:0;margin:0;color:#fff;text-align:left;cursor:pointer;text-decoration:underline dotted}
 .lbname:hover{color:#ffe36b}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4cff8a;margin-left:6px;box-shadow:0 0 6px #4cff8a;vertical-align:middle}
@@ -483,8 +484,8 @@ function claimDaily(){
   tone(523,0.1,'square',0.05);tone(784,0.12,'square',0.05,0.08);tone(1047,0.2,'square',0.05,0.16);
   saveGame();dirty=true;hudTick();
 }
-// Ascending costs cash: the next ascension needs this much money in hand, and every ascension costs 3.4x the one before.
-function ascCost(){return 2e8*Math.pow(3.4,Math.min(MAX_ASC,G.asc|0));}
+// Ascending costs cash: the next ascension needs this much money in hand, and every ascension costs 3x the one before (it used to be 3.4x).
+function ascCost(){return 2e8*Math.pow(3,Math.min(MAX_ASC,G.asc|0));}
 function asGain(){return (G.asc|0)>=MAX_ASC?0:(G.coins>=ascCost()?1:0);}
 function crewList(){var l=[],i;for(i=0;i<faces.length;i++)if(faces[i].crew)l.push(faces[i]);return l;}
 function crewCasts(){var s=0,i;for(i=0;i<faces.length;i++)if(faces[i].crew)s+=crewFm(faces[i]);return s;}
@@ -1570,7 +1571,7 @@ function bookHtml(){
 }
 function ascHtml(){
   var g=asGain();
-  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A full restart. Resets coins, gems, faces, upgrades, the Book, quests and achievements. Only your settings and ascension count stay.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
+  return `<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>&#127775;</div><div class='info'><b>Ascend</b><small>A restart. Resets coins, gems, upgrades, the Book, quests and achievements. You keep your 3 best faces (back at level 1), your ascension count and your total earnings.</small><small style='color:#ffe36b'>Earned this run: $${fmt(G.run)}</small><small>Cost of the next ascension: $${fmt(nextAscAt())} in cash (you have $${fmt(G.coins)}). Each ascension costs more than the last, and the cash is spent.</small></div></div><div class='card shopc' style='--rc:#ff5ac8'><div class='ic'>&#128142;</div><div class='info'><b>Ascensions: ${G.asc} / ${MAX_ASC}</b><small>Gems this run: ${G.gems} &bull; Quests get tougher with every ascension. Each high rarity unlocks at its own ascension, and the very top tiers (Quantum and above, including the Limited Edition) only exist for players who climb to the top. The maximum is ${MAX_ASC}.</small></div><button class='btn pink buy' data-a='asc'${g>=1?'':' disabled'}>${G.asc>=MAX_ASC?'Max ascension':g>=1?(ascArm?'Click again to restart':'Ascend for $'+fmt(nextAscAt())):'Need $'+fmt(nextAscAt())}</button></div><div class='card shopc' style='--rc:#7dd3ff'><div class='info'><b>Performance mode</b><small>Off: every effect. Low: no shake or glow, fewer particles, short animations. High: no effects at all, for the weakest devices.</small><div class='tools' style='margin:5px 0 0'><button class='btn seg${!G.perf?' on':''}' data-a='perfset' data-v='0'>Off</button><button class='btn seg${G.perf===1?' on':''}' data-a='perfset' data-v='1'>Low</button><button class='btn seg${G.perf===2?' on':''}' data-a='perfset' data-v='2'>High</button></div></div></div><div class='card shopc'><div class='info'><b>Tutorial</b><small>Replay the guided intro from the start.</small></div><button class='btn buy' data-a='tutor'>Replay</button></div><div class='card shopc'><div class='info'><small>Danger zone</small></div><button class='btn red' data-a='wipe'>${wipeArm?'Click again to wipe':'Wipe save'}</button></div>`;
 }
 function srow(a,b){return `<div class='srow'><span>${a}</span><b>${b}</b></div>`;}
 function nextAscAt(){return ascCost();}
@@ -1613,7 +1614,7 @@ function render(){
 
 // ---------- ACCOUNT / LEADERBOARD ----------
 // Online features talk to the /api functions of the Vercel deployment. When the server cannot be reached (offline file, preview) the game plays on and the Top tab says so.
-var AK='reelFacesAuth',acct={token:'',name:'',u:'',pwOpen:false,rank:0,total:0,msg:'',busy:false,subBusy:false,rows:null,lbT:0,lbBusy:false,offline:false,view:'peak',vtotal:0,vrank:0,feed:null,prof:null};
+var AK='reelFacesAuth',acct={token:'',name:'',u:'',pwOpen:false,rank:0,total:0,msg:'',busy:false,subBusy:false,rows:null,lbT:0,lbBusy:false,offline:false,view:'life',vtotal:0,vrank:0,feed:null,prof:null};
 function saveBlob(){G.ts=Date.now();return JSON.stringify({S:SEASON,G:G,faces:faces.map(function(f){return [f.id,f.rar,f.mut,f.lvl,f.crew?1:0,f.lock?1:0,Math.floor(f.tot||0)];})});}
 function acctLoad(){try{var s=JSON.parse(localStorage.getItem(AK)||'null');if(s&&s.token&&s.name){acct.token=s.token;acct.name=s.name;}}catch(_){}}
 function acctStore(){try{if(acct.token)localStorage.setItem(AK,JSON.stringify({token:acct.token,name:acct.name}));else localStorage.removeItem(AK);}catch(_){}}
@@ -1630,7 +1631,7 @@ function acctSubmit(manual){
   if(!acct.token||acct.subBusy)return;
   var bb=bestBook(),tf=faces.slice().sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;}).slice(0,6).map(function(f){return [f.rar,f.mut,f.lvl];});
   acct.subBusy=true;
-  api('api/submit',{coins:Math.min(1e21,Math.floor(G.coins)),inc:Math.min(1e20,curInc),asc:Math.min(MAX_ASC,G.asc|0),season:SEASON,caught:Math.min(1e9,G.caught),book:Math.min(80,disc),bestRar:bb[0],bestMut:bb[1],top:tf,cps:Math.round(crewList().reduce(function(s,f){return s+crewFm(f);},0)*100)/100,save:saveBlob()}).then(function(r){
+  api('api/submit',{coins:Math.min(1e21,Math.floor(G.coins)),inc:Math.min(1e20,curInc),asc:Math.min(MAX_ASC,G.asc|0),season:SEASON,caught:Math.min(1e9,G.caught),book:Math.min(80,disc),bestRar:bb[0],bestMut:bb[1],top:tf,cps:Math.round(crewList().reduce(function(s,f){return s+crewFm(f);},0)*100)/100,life:Math.min(1e24,Math.floor((G.lp||0)+G.run)),save:saveBlob()}).then(function(r){
     acct.subBusy=false;
     if(r.code===401){signOut('Your session expired. Please sign in again.');return;}
     if(r.ok){acct.rank=r.j.rank||acct.rank;acct.total=r.j.total||acct.total;acct.offline=false;if(manual)acct.msg='Synced!';updSoft(r.j.build);}
@@ -1767,7 +1768,7 @@ function fetchLb(force){
   acct.lbBusy=true;acct.lbT=Date.now();
   var v=acct.view;api('api/leaderboard?n=50&feed=1&view='+v).then(function(r){
     acct.lbBusy=false;
-    if(v!==acct.view){acct.lbT=0;}else if(r.ok){acct.rows=r.j.rows||[];acct.vtotal=r.j.total||0;acct.vrank=(r.j.me&&r.j.me.rank)||0;if(Array.isArray(r.j.feed))acct.feed=r.j.feed;if(v==='peak'){acct.total=acct.vtotal;if(acct.vrank)acct.rank=acct.vrank;}acct.offline=false;}
+    if(v!==acct.view){acct.lbT=0;}else if(r.ok){acct.rows=r.j.rows||[];acct.vtotal=r.j.total||0;acct.vrank=(r.j.me&&r.j.me.rank)||0;if(Array.isArray(r.j.feed))acct.feed=r.j.feed;if(v==='life'){acct.total=acct.vtotal;if(acct.vrank)acct.rank=acct.vrank;}acct.offline=false;}
     else acct.offline=true;
     if(tab==='top')renderSafe();
   }).catch(function(){acct.lbBusy=false;acct.offline=true;if(tab==='top')renderSafe();});
@@ -1779,10 +1780,11 @@ function faceChips(top){
   return h;
 }
 var MED=['&#129351;','&#129352;','&#129353;'];
-var LBV=[['peak','Money'],['inc','Income'],['asc','Ascends'],['book','Book']];
-var LBNOTE={peak:'Ranked by the most money you have held at once.',inc:'Ranked by the best income per second you have reached, across ascensions.',asc:'Ranked by ascensions, then by Book entries.',book:'Ranked by Book entries found this run, then by ascensions.'};
-function lbMetric(r){var v=acct.view;return v==='inc'?'$'+fmt(r.inc)+'/s':v==='asc'?(r.asc|0)+' asc':v==='book'?(r.book|0)+'/'+NR*5+' book':'$'+fmt(r.peak);}
-function lbNum(r){var v=acct.view;return v==='inc'?(+r.inc||0):v==='asc'?(r.asc|0):v==='book'?(r.book|0):(+r.peak||0);}
+var LBV=[['life','Total'],['peak','Peak'],['inc','Income'],['asc','Ascends'],['book','Book']];
+function devTag(t){return t?`<span class='devtag${t==='owner'?' own':''}' title='${t==='owner'?'Owner':'Staff'}'>DEV</span>`:'';}
+var LBNOTE={life:'Ranked by all the money you have ever earned, across every ascension. You keep your place when you ascend.',peak:'Ranked by the most money you have held at once.',inc:'Ranked by the best income per second you have reached, across ascensions.',asc:'Ranked by ascensions, then by Book entries.',book:'Ranked by the most Book entries you have ever reached, then by ascensions.'};
+function lbMetric(r){var v=acct.view;return v==='inc'?'$'+fmt(r.inc)+'/s':v==='asc'?(r.asc|0)+' asc':v==='book'?((r.bookMax!=null?r.bookMax:r.book)|0)+'/'+NR*5+' book':v==='peak'?'$'+fmt(r.peak)+' peak':'$'+fmt(r.life!=null?r.life:r.peak)+' total';}
+function lbNum(r){var v=acct.view;return v==='inc'?(+r.inc||0):v==='asc'?(r.asc|0):v==='book'?((r.bookMax!=null?r.bookMax:r.book)|0):v==='peak'?(+r.peak||0):(+(r.life!=null?r.life:r.peak)||0);}
 function lbRival(){
   var rows=acct.rows,i,idx=-1,g,pre,suf;
   if(!acct.token||!rows||!rows.length)return '';
@@ -1791,10 +1793,10 @@ function lbRival(){
   if(idx===0)return `<div class='note'>&#128081; You lead this board!</div>`;
   g=lbNum(rows[idx-1])-lbNum(rows[idx]);
   if(g<=0)return `<div class='note'>You are level with <b>${esc(rows[idx-1].name)}</b>.</div>`;
-  pre=acct.view==='peak'||acct.view==='inc'?'$':'';suf=acct.view==='inc'?'/s':'';
+  pre=acct.view==='life'||acct.view==='peak'||acct.view==='inc'?'$':'';suf=acct.view==='inc'?'/s':'';
   return `<div class='note'>Next rival: <b>${esc(rows[idx-1].name)}</b> is ${pre}${fmt(g)}${suf} ahead of you.</div>`;
 }
-function setLbView(v){if(!/^(peak|inc|asc|book)$/.test(v)||v===acct.view)return;acct.view=v;acct.rows=null;acct.lbT=0;acct.vrank=0;acct.vtotal=0;}
+function setLbView(v){if(!/^(life|peak|inc|asc|book)$/.test(v)||v===acct.view)return;acct.view=v;acct.rows=null;acct.lbT=0;acct.vrank=0;acct.vtotal=0;}
 function openProf(u){
   if(!u)return;
   var p=acct.prof={name:u,loading:true};
@@ -1807,12 +1809,12 @@ function openProf(u){
 }
 function profHtml(){
   var p=acct.prof,x,h;if(!p)return '';
-  h=`<div class='prof'><div class='ph'><b>${esc(p.name)}</b><button class='btn red' data-a='profclose'>&#10005;</button></div>`;
+  h=`<div class='prof'><div class='ph'><b>${esc(p.name)}${p.p?devTag(p.p.dev):''}</b><button class='btn red' data-a='profclose'>&#10005;</button></div>`;
   if(p.loading)h+=`<div class='note'>Loading...</div>`;
   else if(p.err)h+=`<div class='note'>${esc(p.err)}</div>`;
   else{
     x=p.p;
-    h+=srow('Rank',p.rank?'#'+p.rank:'-')+srow('Peak money','$'+fmt(x.peak))+srow('Best income','$'+fmt(x.inc)+'/s')+srow('Ascensions',x.asc|0)+srow('Faces caught',fmt(x.caught))+srow('Book',(x.book|0)+'/'+NR*5)+srow('Best rarity ever',RAR[x.bestEver|0]?RAR[x.bestEver|0].n:'-')+srow('Last seen',ago(x.t))+srow('Playing since',x.created?new Date(x.created).toLocaleDateString():'-');
+    h+=srow('Rank',p.rank?'#'+p.rank:'-')+srow('Total earned','$'+fmt(x.life!=null?x.life:x.peak))+srow('Peak money','$'+fmt(x.peak))+srow('Best income','$'+fmt(x.inc)+'/s')+srow('Ascensions',x.asc|0)+srow('Faces caught',fmt(x.caught))+srow('Book (best ever)',((x.bookMax!=null?x.bookMax:x.book)|0)+'/'+NR*5)+srow('Best rarity ever',RAR[x.bestEver|0]?RAR[x.bestEver|0].n:'-')+srow('Last seen',ago(x.t))+srow('Playing since',x.created?new Date(x.created).toLocaleDateString():'-');
     if(x.cps!=null)h+=srow('Casts per second',(+x.cps).toFixed(2));
      h+=`<div class='sech'>Best catches</div><div class='lbf'>${faceChips(x.top)}</div>`;
   }
@@ -1851,7 +1853,7 @@ function topHtml(){
   else if(!acct.rows.length)h+=`<div class='note'>No one is ranked yet. Be the first!</div>`;
   else for(i=0;i<acct.rows.length;i++){
     r=acct.rows[i];mine=acct.token&&r.name===acct.name;
-    h+=`<div class='lbrow${mine?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><button class='lbname' data-a='profile' data-u='${esc(r.name)}'>${esc(r.name)}</button>${ago(r.t)==='now'?`<span class='dot' title='Online now'></span>`:''}</div><small>${lbMetric(r)} &bull; best ${RAR[r.bestEver|0]?RAR[r.bestEver|0].n:'?'} &bull; ${ago(r.t)}</small><div class='lbf'>${faceChips(r.top)}</div></div></div>`;
+    h+=`<div class='lbrow${mine?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><button class='lbname' data-a='profile' data-u='${esc(r.name)}'>${esc(r.name)}</button>${devTag(r.dev)}${ago(r.t)==='now'?`<span class='dot' title='Online now'></span>`:''}</div><small>${lbMetric(r)} &bull; best ${RAR[r.bestEver|0]?RAR[r.bestEver|0].n:'?'} &bull; ${ago(r.t)}</small><div class='lbf'>${faceChips(r.top)}</div></div></div>`;
   }
   h+=`<div class='tools'><button class='btn' data-a='lbrefresh'>Refresh</button></div><div class='note'>${LBNOTE[acct.view]}</div>`;
   return h+feedHtml();
@@ -1892,13 +1894,18 @@ function autoFuse(){var r,n=0,c,i;
   if(n)toast('Auto-fused '+n+' time'+(n>1?'s':''));
   return n;}
 var ascArm=false;
-// Ascending is a full restart: coins, gems, faces, upgrades, Book, quests and achievements all reset. Only the ascension count, the sound setting and Performance mode survive.
+// Ascending is a restart: coins, gems, upgrades, Book, quests and achievements all reset, but you keep your ASC_KEEP best faces (back at level 1, so a new run does not start from zero faces).
+// The ascension count, the lifetime earnings (lp) and your settings survive too.
+var ASC_KEEP=3;
+function keepFaces(){return faces.slice().sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;}).slice(0,ASC_KEEP).map(function(f){return [f.rar,f.mut];});}
 function ascend(){
   if((G.asc|0)>=MAX_ASC){toast('You have reached the maximum ascension ('+MAX_ASC+').');return;}if(asGain()<1)return;
-  var o=G,n=newG();
+  var o=G,n=newG(),keep=keepFaces();
   n.asc=o.asc+1;n.mute=o.mute;n.perf=o.perf;n.af=o.af;n.dl=o.dl;n.ds=o.ds;n.buy=o.buy;n.pt=o.pt;n.tut=o.tut;n.lp=(o.lp||0)+o.run;
   G=n;faces=[];hooks=[];frenzy=0;autoAcc=0;bubble=null;chest=null;combo=0;wx=null;wxT=7200;chestT=5400;setTide(0,2400);recent=[];sinkers=[];ultraAnim=null;nbAnim=null;ascArm=false;
-  stage.classList.remove('ult');hintEl.style.display='';recount();ensureQuests();
+  stage.classList.remove('ult');hintEl.style.display='';
+  keep.forEach(function(k){var f=makeFace(k[0],k[1],1),key=k[0]+'_'+k[1];G.book[key]=(G.book[key]||0)+1;placeInWater(f);faces.push(f);});
+  recount();ensureQuests();autoCrew();
   banner('ASCENDED!','Ascension #'+G.asc+' - a fresh start','#ffe36b',true);flash=0.8;
   saveGame();dirty=true;render();hudTick();
 }
@@ -2011,37 +2018,11 @@ window.addEventListener('keydown',function(e){
   else if(e.key==='c'||e.key==='C'){setView(view==='crew'?'fish':'crew');}
 });
 
-// ---------- DEV PANEL (hidden, password-gated) ----------
-// Test tools only. The cheats are local-only and never talk to the server; the single exception is the Server admin section (moderation tools), which calls /api/admin with the signed-in account's own session; admin rights come from a one-time code (see api/admin.js) and no password is typed or stored. The first cheat switches on test mode: the real save is backed up, and acctSubmit (the only code that uploads coins, faces and the cloud save) is blocked until the real save is restored or the save is wiped. The password is checked against a salted, iterated hash baked in at build time; the password itself is not in this file.
-var DEV_SALT='5ed5d0c16edd2a60b2f6e1f387815337',DEV_HASH='98f6859d238c5ad305bd611a7a5066e44dc3ac50adc5b0f72b4630ea676099dc',DEV_ITERS=Number('20000'),DTK='reelFacesDevTaint',DBK='reelFacesDevBackup',DLK='reelFacesDevLock';
-var devTaint=false,devBackupMem='',devUntil=0,devEl=null,devBadgeEl=null,devFails=0,devLockUntil=0,devTaps=[],devKeys=[],devMsg='',devArm='',devPR=NR-1,devPM=0;
-try{devTaint=localStorage.getItem(DTK)==='1';devLockUntil=+localStorage.getItem(DLK)||0;}catch(_){}
-var DK=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-function devRotr(x,n){return (x>>>n)|(x<<(32-n));}
-function devSha(s){
-  s=unescape(encodeURIComponent(s));
-  var l=s.length,nb=(((l+8)>>6)+1)*16,w=new Array(nb),i,o,out='',x=new Array(64),H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-  for(i=0;i<nb;i++)w[i]=0;
-  for(i=0;i<l;i++)w[i>>2]|=s.charCodeAt(i)<<(24-(i%4)*8);
-  w[l>>2]|=0x80<<(24-(l%4)*8);
-  w[nb-1]=l*8;
-  for(o=0;o<nb;o+=16){
-    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7],t1,t2,s0,s1;
-    for(i=0;i<64;i++){
-      if(i<16)x[i]=w[o+i]|0;
-      else{s0=devRotr(x[i-15],7)^devRotr(x[i-15],18)^(x[i-15]>>>3);s1=devRotr(x[i-2],17)^devRotr(x[i-2],19)^(x[i-2]>>>10);x[i]=(x[i-16]+s0+x[i-7]+s1)|0;}
-      t1=(h+(devRotr(e,6)^devRotr(e,11)^devRotr(e,25))+((e&f)^(~e&g))+DK[i]+x[i])|0;
-      t2=((devRotr(a,2)^devRotr(a,13)^devRotr(a,22))+((a&b)^(a&c)^(b&c)))|0;
-      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;
-    }
-    H[0]=(H[0]+a)|0;H[1]=(H[1]+b)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
-  }
-  for(i=0;i<8;i++)out+=('00000000'+(H[i]>>>0).toString(16)).slice(-8);
-  return out;
-}
-// Must stay identical to derive() in make_dev_pw.py.
-function devHash(pw){var h=devSha(DEV_SALT+':'+pw),i;for(i=0;i<DEV_ITERS;i++)h=devSha(h+':'+DEV_SALT+':'+pw);return h;}
-function devEq(a,b){if(a.length!==b.length)return false;var d=0,i;for(i=0;i<a.length;i++)d|=a.charCodeAt(i)^b.charCodeAt(i);return d===0;}
+// ---------- DEV PANEL (hidden, admin-gated) ----------
+// Test tools only. The cheats are local-only and never talk to the server; the single exception is the Server admin section (moderation tools), which calls /api/admin with the signed-in account's own session; admin rights come from a one-time code (see api/admin.js) and no password is typed or stored. The first cheat switches on test mode: the real save is backed up, and acctSubmit (the only code that uploads coins, faces and the cloud save) is blocked until the real save is restored or the save is wiped. The panel opens only for a signed-in account that the server says is an admin, so there is no password. This gate is a convenience: the cheats are local-only and the server enforces every real admin action.
+var DTK='reelFacesDevTaint',DBK='reelFacesDevBackup';
+var devTaint=false,devBackupMem='',devEl=null,devBadgeEl=null,devTaps=[],devKeys=[],devMsg='',devArm='',devPR=NR-1,devPM=0;
+try{devTaint=localStorage.getItem(DTK)==='1';localStorage.removeItem('reelFacesDevLock');}catch(_){}
 function devBadgeSync(){
   try{
     if(devTaint&&!devBadgeEl){devBadgeEl=document.createElement('div');devBadgeEl.className='devbadge';devBadgeEl.textContent='TEST DATA - not synced';stage.appendChild(devBadgeEl);}
@@ -2109,36 +2090,18 @@ function devMenu(){
     +`<div class='row'><select class='acf' id='dpr'>${o}</select><select class='acf' id='dpm'>${mo}</select>${devB('spawn','Spawn','green')}</div>`
     +`<div class='sech'>Economy</div><div class='dg'>`+devB('c1m','+$1M')+devB('c1b','+$1B')+devB('c1t','+$1T')+devB('cmax','Max coins')+devB('gems','+100 gems')+devB('ups','Max all upgrades')+`</div>`
     +`<div class='sech'>Events and world</div><div class='dg'>`+devB('wx0','Rainfall')+devB('wx1','Aurora')+devB('wx2','Golden Hour')+devB('chest','Spawn chest')+devB('frenzy','Frenzy 30s')+devB('baits','All baits 10m')+devB('quests','Finish quests')+devB('daily','Reset daily')+devB('ultra','ULTRA show')+`</div>`
-    +`<div class='sech'>Save and access</div><div class='dg'>`+devB('restore',devArm==='restore'?'Tap again to confirm':'Restore my real save','red')+devB('lock','Lock panel')+`</div>`
+    +`<div class='sech'>Save and access</div><div class='dg'>`+devB('restore',devArm==='restore'?'Tap again to confirm':'Restore my real save','red')+(devAdm&&devAdm.tier==='owner'?devB('ownsync',devArm==='ownsync'?'Tap again to confirm':'Owner: end test mode and sync everything','gold'):'')+`</div>`
     +devAdminSection();
 }
 function devRender(){
   if(!devEl)return;
-  var authed=Date.now()<devUntil,h;
-  if(!authed){
-    h=`<div class='dp'><div class='dh'><span>&#128274; Restricted</span>${devB('close','&#10005;','red')}</div><div class='dbd'><div class='note'>Enter the access password.</div><input class='acf' id='dpw' type='password' maxlength='64' placeholder='Password' autocomplete='off' autocapitalize='off' spellcheck='false'><div class='tools'>${devB('unlock','Unlock','green')}</div>${devMsg?`<div class='note'>${devMsg}</div>`:''}</div></div>`;
-  }else{
-    h=`<div class='dp'><div class='dh'><span>&#128736; Dev menu</span>${devB('close','&#10005;','red')}</div><div class='dbd'>${devMsg?`<div class='note'>${devMsg}</div>`:''}${devMenu()}</div></div>`;
-  }
+  var ok=!!(devAdm&&devAdm.admin),h;
+  h=`<div class='dp'><div class='dh'><span>${ok?'&#128736; Dev menu':'&#128274; Restricted'}</span>${devB('close','&#10005;','red')}</div><div class='dbd'>${devMsg?`<div class='note'>${devMsg}</div>`:''}${ok?devMenu():`<div class='note'>The dev menu is only for admin accounts.</div>`+devAdminSection()}</div></div>`;
   devEl.innerHTML=h;
-  try{var pi=$('dpw');if(pi)pi.focus();else devEl.focus();}catch(_){}
-}
-function devUnlock(){
-  var now=Date.now(),inp=$('dpw');if(!inp)return;
-  if(now<devLockUntil){devMsg='Too many attempts. Try again in '+Math.ceil((devLockUntil-now)/1000)+'s.';devRender();return;}
-  var pw=inp.value;inp.value='';
-  if(pw&&DEV_HASH.length===64&&devEq(devHash(pw),DEV_HASH)){
-    devFails=0;devLockUntil=0;try{localStorage.removeItem(DLK);}catch(_){}
-    devUntil=now+600000;devMsg='';
-  }else{
-    devFails++;
-    if(devFails>=3){devLockUntil=now+Math.min(600,15*Math.pow(2,devFails-3))*1000;try{localStorage.setItem(DLK,String(devLockUntil));}catch(_){}}
-    devMsg='Wrong password.';
-  }
-  devRender();
+  try{var pi=$('dac');if(pi&&!ok)pi.focus();else devEl.focus();}catch(_){}
 }
 // Server admin. There is no shared password: a signed-in account becomes an admin by redeeming a one-time code, and from then on every request is authorised by its own session token (see api/admin.js and lib/adminCodes.js).
-var devAU='',devAW='',devArmU='',devAdm=null,devFlags=null,WIPE_PHRASE='DELETE ALL ACCOUNTS';
+var devAdmFor='',devAU='',devAW='',devArmU='',devAdm=null,devFlags=null,WIPE_PHRASE='DELETE ALL ACCOUNTS';
 function devEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');}
 // Asks the server whether this account is an admin (and which tier). Only redraws once the panel is unlocked, so it never wipes a password being typed.
 function devStatus(){
@@ -2146,7 +2109,8 @@ function devStatus(){
   api('/api/admin',{action:'status'}).then(function(o){
     var j=o.j||{};
     devAdm=o.ok?{admin:!!j.admin,tier:j.tier||null}:(o.code===503?{off:true}:{admin:false});
-    if(Date.now()<devUntil)devRender();
+    devAdmFor=acct.name;
+    if(devEl&&devEl.style.display!=='none')devRender();
   });
 }
 // A flag is {u: account, k: 'hard' | 'soft', r: reasons, t: time}.
@@ -2188,7 +2152,7 @@ function devRedeem(){
   if(code.length<24){devMsg='Paste the whole code.';devRender();return;}
   devMsg='Checking the code...';devRender();
   devCall({action:'redeem',code:code},function(j){
-    devAdm={admin:true,tier:j.tier||'staff'};
+    devAdm={admin:true,tier:j.tier||'staff'};devAdmFor=acct.name;
     devMsg='Done. This account is now '+(j.tier==='owner'?'an owner':'a staff')+' admin.';
   });
 }
@@ -2203,6 +2167,19 @@ function devWipe(n,tries){
     devMsg=j.done?'Wiped. '+n+' records deleted. Your own account was kept.':'Stopped after '+n+' records. Tap wipe again to continue.';
     devRender();toast('ADMIN: '+devMsg);
   });
+}
+// Owner only. Ends test mode but keeps everything unlocked, and lets that state sync to the leaderboard. Who may do this is decided by the server from the
+// account's own admin record (api/submit.js skips its plausibility checks for owners only), so for anyone else the sync is simply refused.
+function devOwnerSync(){
+  if(!acct.token){devMsg='Sign in on the Top tab first.';return;}
+  var bk=devBackupMem;try{bk=localStorage.getItem(DBK)||bk;if(bk)localStorage.setItem('reelFacesOwnerBackup',bk);}catch(_){}
+  G.asc=MAX_ASC;
+  DACT.max();
+  devClear();
+  devAfter();
+  devMsg='Test mode is off. Everything is unlocked and syncing to the leaderboard. A copy of your earlier save is kept on this device.';
+  toast('Owner: test mode off, syncing');
+  acctSubmit(true);
 }
 function devAdmin(a){
   var u=$('dau'),w=$('daw'),nm;
@@ -2222,13 +2199,16 @@ function devAdmin(a){
 }
 function devAct(d){
   if(d==='close'){devHide();return;}
-  if(d==='unlock'){devUnlock();return;}
-  if(Date.now()>=devUntil){devMsg='Session expired. Enter the password again.';devRender();return;}
+  if(d.indexOf('adm_')!==0&&!(devAdm&&devAdm.admin)){devMsg='Admin accounts only.';devRender();return;}
   if(d.indexOf('adm_')===0){devAdmin(d.slice(4));return;}
-  if(d==='lock'){devUntil=0;devMsg='';devArm='';devRender();return;}
   if(d==='restore'){
     if(devArm!=='restore'){devArm='restore';devMsg='';devRender();return;}
     devArm='';devMsg='';devRestore();devRender();return;
+  }
+  if(d==='ownsync'){
+    if(!(devAdm&&devAdm.tier==='owner')){devMsg='Owners only.';devRender();return;}
+    if(devArm!=='ownsync'){devArm='ownsync';devMsg='Tap again to confirm: this maxes everything, ends test mode and puts the maxed account on the leaderboard.';devRender();return;}
+    devArm='';devOwnerSync();devRender();return;
   }
   devArm='';
   var fn=DACT[d];if(!fn)return;
@@ -2249,14 +2229,13 @@ function devShow(){
     devEl.addEventListener('keydown',function(e){
       e.stopPropagation();
       if(e.key==='Escape')devHide();
-      else if(e.key==='Enter'&&e.target&&e.target.id==='dpw')devUnlock();
       else if(e.key==='Enter'&&e.target&&e.target.id==='dac')devAdmin('redeem');
     });
     app.appendChild(devEl);
   }
-  devMsg='';devAdm=null;devFlags=null;devEl.style.display='flex';devRender();devStatus();
+  devMsg='';if(!acct.token||devAdmFor!==acct.name)devAdm=null;devFlags=null;devEl.style.display='flex';devRender();devStatus();
   // A tap that opened the panel can hand focus back to the canvas afterwards; take it again on the next tick.
-  setTimeout(function(){try{var pi=$('dpw');if(pi)pi.focus();else if(devEl)devEl.focus();}catch(_){}},0);
+  setTimeout(function(){try{var pi=$('dac');if(pi)pi.focus();else if(devEl)devEl.focus();}catch(_){}},0);
 }
 function devHide(){devArm='';if(devEl)devEl.style.display='none';}
 // Hidden ways in: tap the rock in the bottom-left corner 5 times within 3 seconds, tap the coin counter 7 times within 4 seconds, or press the backtick key 3 times quickly.
@@ -2354,7 +2333,7 @@ function loop(ts){
     try{ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.shadowBlur=0;}catch(_){}
   }
 }
-if(window.__test)window.__test({G:function(){return G;},faces:function(){return faces;},catchFace:catchFace,startUltra:startUltra,setView:setView,baseClick:baseClick,cells:function(){return cells;},ultra:function(){return ultraAnim;},newBest:newBest,nb:function(){return nbAnim;},weights:weightsArr,autoFuse:autoFuse,loadingDone:function(){return !loading;},ftx:function(){return ftx;},capN:capN,step:step,draw:draw,render:render,setTab:function(x){tab=x;render();},fuse:fuse,autoCrew:autoCrew,ascend:ascend,setTide:setTide,tideNow:tideNow,sellFace:sellFace,setWx:function(i){var d=WX[i];wx={id:i,t:2700,max:2700,mut:d.mut||0,luck:d.luck||0,cash:d.cash||0};},spawn:function(r,m){var f=makeFace(r,m,1);placeInWater(f);faces.push(f);burst(f.x,f.y,r,m);dirty=true;},qProg:qProg,claimDaily:claimDaily,dailyReady:dailyReady,upPlan:upPlan,checkAch:checkAch,genQuest:genQuest,devHash:devHash,devTainted:function(){return devTaint;},acctSubmit:acctSubmit,forceChest:function(){chest={x:W/2,y:y0+30,vx:0,life:600,ph:0};openChest();},W:function(){return W;},sky:function(){var sr=Math.max(10,Math.min((y0-skyTop)*0.4,34));return {sx:W*0.84,sy:skyTop+(y0-skyTop)*0.5,sr:sr,ring:sr*2.3,skyTop:skyTop,y0:y0,W:W,H:H};}});
+if(window.__test)window.__test({G:function(){return G;},faces:function(){return faces;},catchFace:catchFace,startUltra:startUltra,setView:setView,baseClick:baseClick,cells:function(){return cells;},ultra:function(){return ultraAnim;},newBest:newBest,nb:function(){return nbAnim;},weights:weightsArr,autoFuse:autoFuse,loadingDone:function(){return !loading;},ftx:function(){return ftx;},capN:capN,step:step,draw:draw,render:render,setTab:function(x){tab=x;render();},fuse:fuse,autoCrew:autoCrew,ascend:ascend,setTide:setTide,tideNow:tideNow,sellFace:sellFace,setWx:function(i){var d=WX[i];wx={id:i,t:2700,max:2700,mut:d.mut||0,luck:d.luck||0,cash:d.cash||0};},spawn:function(r,m){var f=makeFace(r,m,1);placeInWater(f);faces.push(f);burst(f.x,f.y,r,m);dirty=true;},qProg:qProg,claimDaily:claimDaily,dailyReady:dailyReady,upPlan:upPlan,checkAch:checkAch,genQuest:genQuest,devTainted:function(){return devTaint;},acctSubmit:acctSubmit,forceChest:function(){chest={x:W/2,y:y0+30,vx:0,life:600,ph:0};openChest();},W:function(){return W;},sky:function(){var sr=Math.max(10,Math.min((y0-skyTop)*0.4,34));return {sx:W*0.84,sy:skyTop+(y0-skyTop)*0.5,sr:sr,ring:sr*2.3,skyTop:skyTop,y0:y0,W:W,H:H};}});
 window.addEventListener('beforeunload',saveGame);
 loop(0);
 })();

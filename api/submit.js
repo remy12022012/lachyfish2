@@ -2,10 +2,12 @@
 const { SEASON, MIN_ASC_MS, send, readBody, handler, authUser, allow, parseJSON, validateStats, validateSave } = require('../lib/util');
 const { inspect, logFlag, addStrike } = require('../lib/cheat');
 const { currentBuild } = require('../lib/build');
+const { adminOf } = require('../lib/adminCodes');
 
 const MAX_ASC_JUMP = 2; // ascensions gained between two syncs (each costs cash and wipes the run, so more than this in one sync is tampering)
 const FEED_MIN_RAR = 5; // only Mythic and above make the activity feed
-const BOARDS = ['lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
+// lb:life ranks lifetime earnings (the default view), so a player keeps their place after ascending; lb:book ranks the best Book count ever reached.
+const BOARDS = ['lb:life', 'lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
 
 module.exports = handler(['POST'], async (req, res, store) => {
   const lname = await authUser(req, store);
@@ -21,18 +23,23 @@ module.exports = handler(['POST'], async (req, res, store) => {
   const user = parseJSON(urec);
   if (!user) return send(res, 401, { error: 'Please sign in again.' });
   const prev = parseJSON(prevRaw);
+  // Owners (decided here from the account's admin record, never from the request) may sync a maxed-out test state: they skip the
+  // ascension jump, ascension timer and plausibility checks. Staff and everyone else are checked as usual.
+  const adm = await adminOf(store, lname);
+  const owner = !!adm && adm.tier === 'owner';
   // A brand-new account counts as 0 ascensions, so it cannot start with a high number either.
   const prevAsc = prev ? prev.asc : 0;
-  if (s.asc > prevAsc + MAX_ASC_JUMP) return send(res, 422, { error: 'Invalid stats.' });
+  if (!owner && s.asc > prevAsc + MAX_ASC_JUMP) return send(res, 422, { error: 'Invalid stats.' });
 
   const now = Date.now();
   // Real time must have passed for every ascension gained: counted from the last ascension (or from account creation).
   const lastAsc = prev ? (prev.ascAt || prev.created || now) : (user.created || now);
-  if (s.asc > prevAsc && now - lastAsc < (s.asc - prevAsc) * MIN_ASC_MS) return send(res, 422, { error: 'Invalid stats.' });
+  if (!owner && s.asc > prevAsc && now - lastAsc < (s.asc - prevAsc) * MIN_ASC_MS) return send(res, 422, { error: 'Invalid stats.' });
 
   // The stats are only believable next to the save they came from, so a valid cloud save is required with every sync.
   if (s.save === null || !validateSave(s.save, s)) return send(res, 422, { error: 'Invalid save.' });
   const verdict = inspect(s, parseJSON(s.save), prev, now);
+  if (owner) { verdict.hard = []; verdict.soft = []; }
   if (verdict.hard.length || verdict.soft.length) {
     const hard = verdict.hard.length > 0;
     await logFlag(store, lname, hard ? 'hard' : 'soft', verdict.hard.concat(verdict.soft), now);
@@ -46,6 +53,9 @@ module.exports = handler(['POST'], async (req, res, store) => {
   }
 
   const asc = prev ? Math.max(prev.asc, s.asc) : s.asc;
+  // Profiles from before lifetime ranking have no life or bookMax yet: they start from their peak money and their Book count.
+  const prevLife = prev ? (Number.isFinite(prev.life) ? prev.life : prev.peak || 0) : 0;
+  const prevBookMax = prev ? (Number.isFinite(prev.bookMax) ? prev.bookMax : prev.book || 0) : 0;
   const p = {
     name: user.name,
     peak: prev ? Math.max(prev.peak, s.coins) : s.coins,
@@ -53,6 +63,8 @@ module.exports = handler(['POST'], async (req, res, store) => {
     asc,
     caught: prev ? Math.max(prev.caught, s.caught) : s.caught,
     book: s.book,
+    life: Math.max(prevLife, s.life),
+    bookMax: Math.max(prevBookMax, s.book),
     bestEver: prev ? Math.max(prev.bestEver, s.bestRar) : s.bestRar,
     bestMut: prev ? Math.max(prev.bestMut, s.bestMut) : s.bestMut,
     top: s.top.length ? s.top : (prev ? prev.top : []),
@@ -66,8 +78,8 @@ module.exports = handler(['POST'], async (req, res, store) => {
     t: now,
   };
 
-  const peakUp = !prev || p.peak > prev.peak;
-  const rankBefore = peakUp && !quarantined ? await store.zrevrank('lb:peak', lname) : null;
+  const peakUp = !prev || p.life > prevLife;
+  const rankBefore = peakUp && !quarantined ? await store.zrevrank('lb:life', lname) : null;
 
   const writes = [
     store.set('p:' + lname, JSON.stringify(p)),
@@ -78,15 +90,16 @@ module.exports = handler(['POST'], async (req, res, store) => {
     for (const k of BOARDS) writes.push(store.zrem(k, lname));
   } else {
     writes.push(
+      store.zadd('lb:life', p.life, lname),
       store.zadd('lb:peak', p.peak, lname),
       store.zadd('lb:inc', p.inc, lname),
       store.zadd('lb:asc', p.asc * 1000 + p.book, lname),
-      store.zadd('lb:book', p.book * 10000 + p.asc, lname),
+      store.zadd('lb:book', p.bookMax * 10000 + p.asc, lname),
     );
   }
   await Promise.all(writes);
 
-  const [rk, total] = await Promise.all([store.zrevrank('lb:peak', lname), store.zcard('lb:peak')]);
+  const [rk, total] = await Promise.all([store.zrevrank('lb:life', lname), store.zcard('lb:life')]);
 
   // Activity feed (best effort: never fails the sync).
   if (!quarantined) {
