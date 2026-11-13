@@ -1007,6 +1007,17 @@ async function t(name, fn) {
     assert.ok(x.CASH_MAX > 1 && x.CASH_MAX < 10, 'the shared income cap stays modest: ' + x.CASH_MAX);
   });
 
+  await t('expansion: mastery progress (G.x.mxx) is accepted only as whole numbers within the level curve', async () => {
+    const u = require('../lib/util'), x = require('../lib/expansion');
+    const cap = x.MASTERY_XP * (x.MASTERY_MAX_LV + 1) ** 2;
+    const save = (gx) => JSON.stringify({ S: u.SEASON, G: { asc: 0, x: gx }, faces: [] });
+    const base = { rod: 0, rods: [0], loc: 0, locs: [0] };
+    assert.strictEqual(u.validateSave(save(Object.assign({}, base, { mxp: { 0: 2 }, mxx: { 0: 17 } })), { asc: 0 }), true);
+    assert.strictEqual(u.validateSave(save(Object.assign({}, base, { mxx: { 0: cap } })), { asc: 0 }), true, 'the exact upper bound is fine');
+    for (const mxx of [{ 0: cap + 1 }, { 0: -1 }, { 0: 1.5 }, { 9: 1 }, { 0: '3' }, [], null])
+      assert.strictEqual(u.validateSave(save(Object.assign({}, base, { mxx })), { asc: 0 }), false, JSON.stringify(mxx));
+  });
+
   await t('expansion: the tables in public/index.html match lib/expansion.js (run node scripts/sync-expansion.js to fix)', async () => {
     const { spawnSync } = require('child_process');
     const r = spawnSync(process.execPath, [require('path').join(__dirname, '..', 'scripts', 'sync-expansion.js'), '--check']);
