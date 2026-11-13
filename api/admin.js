@@ -4,12 +4,13 @@
 // and every request is authorised by the caller's own session. Attempts are rate limited.
 const { NAME_RE, send, readBody, handler, clientIp, allow, authUser, parseJSON } = require('../lib/util');
 const { configured, redeem, adminOf, revoke, grantDev, removeDev } = require('../lib/adminCodes');
+const { MUTE_MAX, span, setMute } = require('../lib/mute');
 
-const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag'];
+const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag', 'mute', 'unmute'];
 // wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed, except the calling owner's own account and sessions.
 // It cannot be undone, so it needs an owner code and the exact confirmation phrase. Rate-limit counters (rl:*) and admin bindings (ac:*, adm:*) are left alone.
 const WIPE_PHRASE = 'DELETE ALL ACCOUNTS';
-const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:', 'dev:', 'tr:', 'trc:', 'trbox:', 'trl:', 'trp:', 'trx:'];
+const WIPE_PREFIXES = ['u:', 'p:', 'sv:', 's:', 'kick:', 'ban:', 'q:', 'strikes:', 'lb:', 'dev:', 'tr:', 'trc:', 'trbox:', 'trl:', 'trp:', 'trx:', 'chat:', 'mute:'];
 const BOARDS = ['lb:life', 'lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
 
 // Deletes in batches and stops after ~7 s (the function limit is 10 s); the response says done:false until nothing is left, so just call it again.
@@ -103,7 +104,7 @@ module.exports = handler(['POST'], async (req, res, store) => {
   }
   // Admins cannot moderate each other (an owner may act on staff), so a leaked staff code cannot be used to knock out the owner.
   if (tgt && lname !== me && !(adm.tier === 'owner' && tgt.tier === 'staff')) return send(res, 403, { error: 'Admins cannot act on other admins.' });
-  if (lname === me && (action === 'ban' || action === 'quarantine' || action === 'reset')) return send(res, 422, { error: 'Not on your own account.' });
+  if (lname === me && (action === 'ban' || action === 'quarantine' || action === 'reset' || action === 'mute')) return send(res, 422, { error: 'Not on your own account.' });
 
   const removeFromBoards = () => Promise.all(BOARDS.map((k) => store.zrem(k, lname)));
   if (action === 'kick') {
@@ -116,6 +117,15 @@ module.exports = handler(['POST'], async (req, res, store) => {
     await Promise.all([store.set('q:' + lname, String(Date.now())), removeFromBoards()]); // hidden from the leaderboards, can still play and sync
   } else if (action === 'unflag') {
     await Promise.all([store.del('q:' + lname), store.del('strikes:' + lname)]); // back on the boards at their next sync
+  } else if (action === 'mute') {
+    // Chat mute for a chosen time (1 minute up to 7 days); the key expires by itself. Admins cannot be muted: the check above already refused them.
+    const mins = b.mins;
+    if (!Number.isInteger(mins) || mins < 1 || mins > MUTE_MAX) return send(res, 422, { error: 'Mute for 1 minute up to 7 days.' });
+    await setMute(store, lname, mins);
+    return send(res, 200, { ok: true, action, username: lname, mins, note: lname + ' is muted in the chat for ' + span(mins) + '.' });
+  } else if (action === 'unmute') {
+    await setMute(store, lname, 0);
+    return send(res, 200, { ok: true, action, username: lname, note: lname + ' can chat again.' });
   } else if (action === 'reset') {
     await Promise.all([store.del('p:' + lname), store.del('sv:' + lname), store.del('q:' + lname), store.del('strikes:' + lname), store.set('kick:' + lname, Date.now()), removeFromBoards()]);
   }

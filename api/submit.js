@@ -1,5 +1,5 @@
 'use strict';
-const { SEASON, MIN_ASC_MS, send, readBody, handler, authUser, allow, parseJSON, validateStats, validateSave } = require('../lib/util');
+const { SEASON, CLIENT_REV, MIN_ASC_MS, send, readBody, handler, authUser, allow, parseJSON, validateStats, validateSave } = require('../lib/util');
 const { inspect, logFlag, addStrike } = require('../lib/cheat');
 const { currentBuild } = require('../lib/build');
 const { adminOf } = require('../lib/adminCodes');
@@ -15,7 +15,7 @@ module.exports = handler(['POST'], async (req, res, store) => {
   if (!(await allow(store, 'submit:' + lname, 1, 5))) return send(res, 429, { error: 'Syncing too fast. Try again in a few seconds.' });
 
   const b = await readBody(req);
-  if (b && typeof b === 'object' && b.season !== SEASON) return send(res, 409, { error: 'The game was updated. Reload the page to keep playing online.', required: true, build: currentBuild() });
+  if (b && typeof b === 'object' && (b.season !== SEASON || b.rev !== CLIENT_REV)) return send(res, 409, { error: 'The game was updated. Reload the page to keep playing online.', required: true, build: currentBuild() });
   const s = validateStats(b);
   if (!s) return send(res, 422, { error: 'Invalid stats.' });
 
@@ -41,7 +41,10 @@ module.exports = handler(['POST'], async (req, res, store) => {
   // A face offered in a trade has left the player's hands: a save that still holds it (same ascension, so the same face id) is refused until it is gone.
   const trx = parseJSON(await store.get('trx:' + lname));
   if (Array.isArray(trx) && trx.length) {
-    const held = new Set(parseJSON(s.save).faces.map((f) => f[0]));
+    // Backpack faces count too: they keep their id (ids are shared by the Base and the backpack), so moving an offered face there must not hide it.
+    const sv = parseJSON(s.save);
+    const held = new Set(sv.faces.map((f) => f[0]));
+    if (Array.isArray(sv.bp)) for (const f of sv.bp) if (Array.isArray(f)) held.add(f[0]);
     if (!owner && trx.some((e) => e && e.a === s.asc && held.has(e.i))) return send(res, 422, { error: 'A face you offered in a trade is still in your save. Reload the game and try again.' });
   }
   const verdict = inspect(s, parseJSON(s.save), prev, now);

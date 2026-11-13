@@ -18,7 +18,7 @@ async function call(method, path, body, token, hdr) {
   try { j = await r.json(); } catch (e) { /* empty */ }
   return { code: r.status, j };
 }
-const stats = (o) => Object.assign({ season: 3, coins: 1000, inc: 10, asc: 0, caught: 5, book: 3, bestRar: 2, bestMut: 0, top: [[2, 0, 1], [1, 0, 1]], cps: 1.5 }, o || {});
+const stats = (o) => Object.assign({ season: 3, rev: require('../lib/util').CLIENT_REV, coins: 1000, inc: 10, asc: 0, caught: 5, book: 3, bestRar: 2, bestMut: 0, top: [[2, 0, 1], [1, 0, 1]], cps: 1.5 }, o || {});
 // Builds a submission whose cloud save agrees with its stats (same coins, caught, Book, top faces and crew), as a real client sends it.
 // x.g overrides save fields (for example { up: { val: 51 } }), x.faces replaces the faces list, x.save replaces the whole save string.
 function mk(o, x) {
@@ -33,7 +33,7 @@ function mk(o, x) {
   const book = {}, cap = maxRarFor(Math.max(0, Math.min(20, Math.floor(s.asc) || 0))), n = () => Object.keys(book).length;
   for (let r = 0; r <= cap && n() < s.book; r++) for (let m = 0; m < 5 && n() < s.book; m++) book[r + '_' + m] = 1;
   const g = Object.assign({ asc: s.asc, coins: Math.floor(s.coins), caught: s.caught, gems: 0, up: {}, book, ach: {} }, x.g || {});
-  s.save = x.save !== undefined ? x.save : JSON.stringify({ S: 3, G: g, faces });
+  s.save = x.save !== undefined ? x.save : JSON.stringify(Object.assign({ S: 3, G: g, faces }, x.bp ? { bp: x.bp } : {}));
   return s;
 }
 const unlock = (name) => getStore().del('rl:submit:' + name.toLowerCase());
@@ -152,6 +152,19 @@ async function t(name, fn) {
       assert.strictEqual(r.code, 422, JSON.stringify(bad));
     }
     assert.ok((await call('GET', '/api/me', undefined, A)).j.save.includes('"coins":1000'), 'the last valid save is kept');
+  });
+  await t('cloud saves accept a valid backpack and refuse an oversized or impossible one', async () => {
+    const u = require('../lib/util');
+    const base = { S: u.SEASON, G: { asc: 0 }, faces: [] };
+    const ok = (bp) => u.validateSave(JSON.stringify({ ...base, bp }), { asc: 0 });
+    assert.strictEqual(ok([[1, 2, 0, 1, 0], [2, 3, 4, 20, 99]]), true);
+    assert.strictEqual(u.validateSave(JSON.stringify(base), { asc: 0 }), true, 'older saves without a backpack');
+    assert.strictEqual(ok(new Array(3000).fill([1, 0, 0, 1, 0])), true, 'exactly 3000');
+    assert.strictEqual(ok(new Array(3001).fill([1, 0, 0, 1, 0])), false, 'over 3000');
+    assert.strictEqual(ok([[1, 16, 0, 1, 0]]), false, 'rarity above this ascension');
+    assert.strictEqual(ok([[1, 2, 9, 1, 0]]), false, 'bad mutation');
+    assert.strictEqual(ok([[1, 2, 0, 99, 0]]), false, 'bad level');
+    assert.strictEqual(ok('x'), false, 'not a list');
   });
   await t('second player takes #1 and the feed records it', async () => {
     const s = await call('POST', '/api/signup', { username: 'bob_2', password: 'hunter22' }); B = s.j.token;
@@ -706,6 +719,10 @@ async function t(name, fn) {
     let r = await lsub('trade_a', T1, T1O, { faces: T1F });
     assert.strictEqual(r.code, 422, 'the traded face is still in this save: ' + JSON.stringify(r.j));
     assert.match(r.j.error, /still in your save/);
+    // Moving the offered face (same id) into the backpack must not hide it from the check.
+    r = await lsub('trade_a', T1, { top: [[1, 0, 1], [0, 0, 1]] }, { faces: T1F.slice(1), bp: [[1, 2, 0, 1, 0]] });
+    assert.strictEqual(r.code, 422, 'the traded face is still in the backpack: ' + JSON.stringify(r.j));
+    assert.match(r.j.error, /still in your save/);
     r = await lsub('trade_a', T1, { top: [[1, 0, 1], [0, 0, 1]] }, { faces: T1F.slice(1) });
     assert.strictEqual(r.code, 200, JSON.stringify(r.j));
   });
@@ -722,6 +739,167 @@ async function t(name, fn) {
     assert.strictEqual((await tc('POST', { action: 'offer', fid: 2, face: [1, 0, 1] }, T1)).code, 409, 'a finished trade takes no more offers');
     await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
     assert.strictEqual((await tc('POST', { action: 'offer', fid: 2, face: [1, 0, 1] }, T1)).code, 404, 'after acknowledging, the player is not in a trade');
+  });
+  await t('trade: faces in the backpack, on the farm and on the crew can be offered; locked faces still cannot', async () => {
+    await getStore().del('rl:trade:trade_a');
+    // 10 sits in the backpack, 11 is on the farm (flag 7), 12 is on the crew (flag 4), 3 is locked (flag 5).
+    const sv = { faces: [[3, 0, 0, 1, 0, 1, 0, 0], [11, 1, 0, 1, 0, 0, 0, 1], [12, 0, 0, 1, 1, 0, 0, 0]], bp: [[10, 1, 0, 1, 0]] };
+    let r = await lsub('trade_a', T1, { top: [[1, 0, 1], [0, 0, 1]] }, sv);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'trade_b' }, T1)).code, 200);
+    assert.strictEqual((await tc('POST', { action: 'accept' }, T2)).code, 200);
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 3, face: [0, 0, 1] }, T1)).code, 409, 'locked face');
+    r = await tc('POST', { action: 'offer', fid: 10, face: [1, 0, 1] }, T1);
+    assert.strictEqual(r.code, 200, 'backpack face: ' + JSON.stringify(r.j));
+    assert.deepStrictEqual(r.j.trade.mine.slice(0, 3), [1, 0, 1]);
+    r = await tc('POST', { action: 'offer', fid: 11, face: [1, 0, 1] }, T1);
+    assert.strictEqual(r.code, 200, 'farm face: ' + JSON.stringify(r.j));
+    r = await tc('POST', { action: 'offer', fid: 12, face: [0, 0, 1] }, T1);
+    assert.strictEqual(r.code, 200, 'crew face: ' + JSON.stringify(r.j));
+    assert.strictEqual((await tc('POST', { action: 'offer', fid: 10, face: [1, 0, 1] }, T1)).code, 409, 'a face already used in this trade');
+    assert.strictEqual((await tc('POST', { action: 'cancel' }, T2)).code, 200);
+    await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
+    // The offered faces are gone from the player's hands, so the next sync no longer holds them.
+    r = await lsub('trade_a', T1, { top: [[0, 0, 1]], inc: 1 }, { faces: [[3, 0, 0, 1, 0, 1, 0, 0]] });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+  });
+  await t('trade: a full backpack cannot offer or confirm, because received faces go into the backpack', async () => {
+    await getStore().del('rl:trade:trade_a');
+    const bpFull = [];
+    for (let i = 0; i < 3000; i++) bpFull.push([100 + i, 0, 0, 1, 0]);
+    let r = await lsub('trade_a', T1, { top: [[0, 0, 1]], inc: 1 }, { faces: [[3, 0, 0, 1, 0, 1, 0, 0]], bp: bpFull });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual((await tc('POST', { action: 'invite', username: 'trade_b' }, T1)).code, 200);
+    assert.strictEqual((await tc('POST', { action: 'accept' }, T2)).code, 200);
+    r = await tc('POST', { action: 'offer', fid: 100, face: [0, 0, 1] }, T1);
+    assert.strictEqual(r.code, 409, JSON.stringify(r.j));
+    assert.match(r.j.error, /backpack is full/);
+    assert.strictEqual((await tc('POST', { action: 'cancel' }, T1)).code, 200);
+    await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
+    r = await lsub('trade_a', T1, { top: [[0, 0, 1]], inc: 1 }, { faces: [[3, 0, 0, 1, 0, 1, 0, 0]] });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+  });
+
+  // ---- forced update (client rev) and the chat room ----
+  let C1, C2, CA;
+  const cc = (m, b, tok) => call(m, m === 'GET' ? '/api/chat' + (b || '') : '/api/chat', m === 'GET' ? undefined : b, tok); // for GET, b is the query string
+  const rl = (n) => getStore().del('rl:chat:' + n);
+
+  await t('a sync without the current client rev is 409 and required; the current rev is accepted', async () => {
+    const R = await signupAs('rev_user', 'secret-r1', 96); unlock('rev_user');
+    const b = stats(); delete b.rev;
+    const r = await call('POST', '/api/submit', b, R);
+    assert.strictEqual(r.code, 409); assert.strictEqual(r.j.required, true); assert.match(r.j.build, /^[0-9a-f]{12}$/);
+    unlock('rev_user'); assert.strictEqual((await call('POST', '/api/submit', stats({ rev: 1 }), R)).code, 409, 'an older rev is refused too');
+    unlock('rev_user'); const ok = await call('POST', '/api/submit', mk(), R); assert.strictEqual(ok.code, 200, JSON.stringify(ok.j));
+  });
+  await t('chat needs a session', async () => {
+    assert.strictEqual((await cc('GET', '?after=0')).code, 401);
+    assert.strictEqual((await cc('POST', { text: 'hi' })).code, 401);
+  });
+  await t('chat: messages are shared and ordered, carry the registered name, and a poll returns only the new ones', async () => {
+    C1 = await signupAs('chat_one', 'secret-c1', 93); C2 = await signupAs('Chat_Two', 'secret-c2', 94);
+    const e = await cc('GET', '?after=0', C1); assert.strictEqual(e.code, 200); assert.deepStrictEqual(e.j, { seq: 0, msgs: [] });
+    const a = await cc('POST', { text: 'hello   there' }, C1);
+    assert.strictEqual(a.code, 200, JSON.stringify(a.j)); assert.strictEqual(a.j.msg.t, 'hello there'); assert.strictEqual(a.j.msg.n, 'chat_one');
+    assert.strictEqual((await cc('POST', { text: 'hi back' }, C2)).code, 200);
+    const all = await cc('GET', '?after=0', C2);
+    assert.deepStrictEqual(all.j.msgs.map((m) => m.t), ['hello there', 'hi back']);
+    assert.strictEqual(all.j.msgs[1].n, 'Chat_Two'); assert.strictEqual(all.j.seq, 2);
+    assert.deepStrictEqual((await cc('GET', '?after=1', C1)).j.msgs.map((m) => m.t), ['hi back']);
+    assert.deepStrictEqual((await cc('GET', '?after=2', C1)).j.msgs, []);
+    assert.strictEqual((await cc('GET', '?after=99', C1)).j.msgs.length, 2, 'an id from a reset room starts over');
+  });
+  await t('chat: empty, malformed, control-character, over-long and repeated messages are handled', async () => {
+    await rl('chat_one');
+    assert.strictEqual((await cc('POST', { text: '   ' }, C1)).code, 400);
+    assert.strictEqual((await cc('POST', { text: 123 }, C1)).code, 400);
+    assert.strictEqual((await cc('POST', '{bad', C1)).code, 400);
+    const r = await cc('POST', { text: 'a\u0000b\u202ec' + 'x'.repeat(300) }, C1);
+    assert.strictEqual(r.code, 200); assert.strictEqual(r.j.msg.t.length, 200); assert.ok(!/[\u0000\u202e]/.test(r.j.msg.t));
+    assert.strictEqual((await cc('POST', { text: r.j.msg.t }, C1)).code, 429, 'the same text twice in a row');
+  });
+  await t('chat: sending too fast is 429', async () => {
+    await rl('chat_two'); let last;
+    for (let i = 0; i < 8; i++) last = await cc('POST', { text: 'spam ' + i }, C2);
+    assert.strictEqual(last.code, 429);
+  });
+  await t('chat: the room keeps the newest 60 messages and a first poll sends the latest 40', async () => {
+    const st = getStore(); await st.del('chat:log'); await st.del('chat:seq');
+    for (let i = 0; i < 120; i++) { await rl('chat_one'); await st.del('chatd:chat_one'); await cc('POST', { text: 'm' + i }, C1); }
+    const r = await cc('GET', '?after=0', C1);
+    assert.strictEqual(r.j.msgs.length, 40); assert.strictEqual(r.j.msgs[0].t, 'm80'); assert.strictEqual(r.j.msgs[39].t, 'm119'); assert.strictEqual(r.j.seq, 120);
+    const rest = await cc('GET', '?after=20', C1);
+    assert.strictEqual(rest.j.msgs.length, 60); assert.strictEqual(rest.j.msgs[0].t, 'm60');
+  });
+  await t('chat: only admins can mute or clear; a muted player cannot talk until unmuted', async () => {
+    const code = mkCode(); setCodes(allCodes().concat(hashCode(code)));
+    CA = await signupAs('chat_admin', 'secret-ca', 95);
+    assert.strictEqual((await adm({ action: 'redeem', code }, CA, 95)).code, 200);
+    await rl('chat_one'); await rl('chat_two'); await rl('chat_admin');
+    assert.strictEqual((await cc('POST', { mute: 'chat_two', mins: 5 }, C1)).code, 403, 'a normal player cannot mute');
+    assert.strictEqual((await cc('POST', { clear: true }, C1)).code, 403, 'a normal player cannot clear');
+    const m = await cc('POST', { mute: 'chat_two', mins: 5 }, CA); assert.strictEqual(m.code, 200, JSON.stringify(m.j));
+    await rl('chat_two'); assert.strictEqual((await cc('POST', { text: 'let me talk' }, C2)).code, 403);
+    assert.strictEqual((await cc('POST', { mute: 'chat_admin', mins: 5 }, CA)).code, 403, 'admins cannot be muted');
+    assert.strictEqual((await cc('POST', { mute: 'nobody_here', mins: 5 }, CA)).code, 404);
+    assert.strictEqual((await cc('POST', { mute: 'chat_two', mins: 0 }, CA)).code, 200);
+    await rl('chat_two'); assert.strictEqual((await cc('POST', { text: 'back again' }, C2)).code, 200);
+    assert.strictEqual((await cc('POST', { clear: true }, CA)).code, 200);
+    assert.deepStrictEqual((await cc('GET', '?after=50', C1)).j, { seq: 0, msgs: [] }, 'clients holding a higher id are told to drop everything');
+  });
+
+  await t('owner panel: mute for a chosen time, unmute, and only admins may', async () => {
+    await rl('chat_two'); await getStore().del('chatd:chat_two');
+    assert.strictEqual((await adm({ action: 'mute', username: 'chat_two', mins: 60 }, C1, 95)).code, 403, 'a normal player cannot');
+    assert.strictEqual((await adm({ action: 'mute', username: 'chat_two' }, CA, 95)).code, 422, 'a length is required');
+    assert.strictEqual((await adm({ action: 'mute', username: 'chat_two', mins: 99999 }, CA, 95)).code, 422, 'too long');
+    assert.strictEqual((await adm({ action: 'mute', username: 'chat_admin', mins: 5 }, CA, 95)).code, 422, 'not on yourself');
+    const m = await adm({ action: 'mute', username: 'chat_two', mins: 60 }, CA, 95);
+    assert.strictEqual(m.code, 200, JSON.stringify(m.j)); assert.match(m.j.note, /1 hour/);
+    const r = await cc('POST', { text: 'muted?' }, C2);
+    assert.strictEqual(r.code, 403); assert.match(r.j.error, /1 hour/);
+    assert.strictEqual((await adm({ action: 'unmute', username: 'chat_two' }, CA, 95)).code, 200);
+    await rl('chat_two'); assert.strictEqual((await cc('POST', { text: 'free again' }, C2)).code, 200);
+  });
+
+  await t('trade: the online list shows recent players, hides you and players who block invites, and drops expired ones', async () => {
+    const tradeApi = require('../api/trade');
+    const store = getStore();
+    const ol = async (name, tok) => { tradeApi.resetOnline(); await store.del('rl:trade:' + name); return call('GET', '/api/trade?online=1', undefined, tok); };
+    assert.strictEqual((await call('GET', '/api/trade?online=1')).code, 401, 'needs sign-in');
+    await store.del('rl:trade:trade_b');
+    const plain = await tc('GET', undefined, T2);
+    assert.strictEqual(plain.j.online, undefined, 'the list is only sent when asked for');
+    await ol('trade_b', T2);
+    let r = await ol('trade_a', T1);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.ok(Array.isArray(r.j.online));
+    assert.ok(r.j.online.includes('trade_b'), 'a player who just polled is listed: ' + JSON.stringify(r.j.online));
+    assert.ok(!r.j.online.includes('trade_a'), 'you are not in your own list');
+    // blocking invites hides a player
+    assert.strictEqual((await tc('POST', { action: 'prefs', block: true }, T2)).code, 200);
+    r = await ol('trade_a', T1);
+    assert.ok(!r.j.online.includes('trade_b'), 'a player blocking invites is not listed');
+    await store.del('rl:trade:trade_b');
+    assert.strictEqual((await tc('POST', { action: 'prefs', block: false }, T2)).code, 200);
+    r = await ol('trade_a', T1);
+    assert.ok(r.j.online.includes('trade_b'), 'listed again once unblocked');
+    // an expired presence key drops the player and cleans the set
+    await store.del('on:trade_b');
+    r = await ol('trade_a', T1);
+    assert.ok(!r.j.online.includes('trade_b'), 'expired players are not listed');
+    assert.ok(!(await store.zrevrange('online', 0, -1)).includes('trade_b'), 'and are removed from the set');
+    // clicking a listed name is the normal invite
+    await ol('trade_b', T2);
+    r = await ol('trade_a', T1);
+    const nm = r.j.online.find((n) => n.toLowerCase() === 'trade_b');
+    assert.ok(nm, 'listed to click');
+    await store.del('rl:trade:trade_a');
+    r = await tc('POST', { action: 'invite', username: nm }, T1);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.strictEqual(r.j.trade.s, 'invited');
+    assert.strictEqual((await tc('POST', { action: 'cancel' }, T1)).code, 200);
+    await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
   });
 
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
