@@ -990,6 +990,23 @@ async function t(name, fn) {
     assert.strictEqual((await me(O)).j.expansion, false, 'switched off again');
   });
 
+  await t('expansion: a cloud save may carry G.x only when it is in bounds; saves without it are untouched', async () => {
+    const u = require('../lib/util'), x = require('../lib/expansion');
+    const save = (gx, asc) => JSON.stringify({ S: u.SEASON, G: Object.assign({ asc: asc || 0 }, gx === undefined ? {} : { x: gx }), faces: [] });
+    const ok = { rod: 1, rods: [0, 1], loc: 1, locs: [0, 1], mxp: { 1: 5 }, chests: 3 };
+    assert.strictEqual(u.validateSave(save(undefined), { asc: 0 }), true, 'older saves have no G.x');
+    assert.strictEqual(u.validateSave(save(ok), { asc: 0 }), true);
+    const bad = [
+      [Object.assign({}, ok, { rod: 9 }), 0], [Object.assign({}, ok, { rods: [1] }), 0], [Object.assign({}, ok, { rods: [0, 0, 1] }), 0],
+      [Object.assign({}, ok, { loc: 2, locs: [0, 2] }), 0], // Glow Cave needs an ascension
+      [Object.assign({}, ok, { mxp: { 1: x.MASTERY_MAX_LV + 1 } }), 0], [Object.assign({}, ok, { mxp: { 9: 1 } }), 0],
+      [Object.assign({}, ok, { chests: x.CHEST_MAX + 1 }), 0], [Object.assign({}, ok, { extra: 1 }), 0], ['rod', 0], [[], 0], [null, 0],
+    ];
+    for (const [gx, asc] of bad) assert.strictEqual(u.validateSave(save(gx, asc), { asc }), false, JSON.stringify(gx));
+    assert.strictEqual(u.validateSave(save({ rod: 0, rods: [0], loc: 2, locs: [0, 2] }, 1), { asc: 1 }), true, 'the same location is fine after one ascension');
+    assert.ok(x.CASH_MAX > 1 && x.CASH_MAX < 10, 'the shared income cap stays modest: ' + x.CASH_MAX);
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();
