@@ -1007,6 +1007,12 @@ async function t(name, fn) {
     assert.ok(x.CASH_MAX > 1 && x.CASH_MAX < 10, 'the shared income cap stays modest: ' + x.CASH_MAX);
   });
 
+  await t('expansion: the tables in public/index.html match lib/expansion.js (run node scripts/sync-expansion.js to fix)', async () => {
+    const { spawnSync } = require('child_process');
+    const r = spawnSync(process.execPath, [require('path').join(__dirname, '..', 'scripts', 'sync-expansion.js'), '--check']);
+    assert.strictEqual(r.status, 0, 'the page is out of date with lib/expansion.js');
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();
