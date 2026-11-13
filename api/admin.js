@@ -2,11 +2,15 @@
 // Admin actions: redeem (turn the signed-in account into an admin with a one-time code), status, kick, ban, unban, reset, flags, quarantine, unflag,
 // revoke (owner) and wipeall (owner). There is no shared password: admins are ordinary accounts that redeemed a code from ADMIN_CODES (see lib/adminCodes.js),
 // and every request is authorised by the caller's own session. Attempts are rate limited.
-const { NAME_RE, send, readBody, handler, clientIp, allow, authUser, parseJSON } = require('../lib/util');
+const crypto = require('crypto');
+const { NAME_RE, NR, NM, maxRarFor, send, readBody, handler, clientIp, allow, authUser, parseJSON } = require('../lib/util');
 const { configured, redeem, adminOf, revoke, grantDev, removeDev } = require('../lib/adminCodes');
 const { MUTE_MAX, span, setMute } = require('../lib/mute');
 
-const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag', 'mute', 'unmute'];
+const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag', 'mute', 'unmute', 'giveface'];
+const GIVE_MAX = 10; // faces per grant
+const BOX_MAX = 30; // the delivery box holds this many entries (same limit as api/trade.js)
+const MAX_LVL = 20;
 // wipeall deletes EVERY account, cloud save, session, moderation marker, leaderboard and the activity feed, except the calling owner's own account and sessions.
 // It cannot be undone, so it needs an owner code and the exact confirmation phrase. Rate-limit counters (rl:*) and admin bindings (ac:*, adm:*) are left alone.
 const WIPE_PHRASE = 'DELETE ALL ACCOUNTS';
@@ -93,6 +97,24 @@ module.exports = handler(['POST'], async (req, res, store) => {
     if (action === 'devtag') await grantDev(store, lname, JSON.parse(await store.get('u:' + lname)));
     else await removeDev(store, lname);
     return send(res, 200, { ok: true, action, username: lname });
+  }
+  // Owner only. The face goes into the player's delivery box (the one trades use): their game adds it to the backpack and claims it. Editing the stored save
+  // instead would be undone by the player's next sync. Rarity is capped to what their ascension count can hold, because a save with a higher one is refused.
+  if (action === 'giveface') {
+    if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can give faces.' });
+    const rar = b.rar, mut = b.mut, lvl = b.lvl === undefined ? 1 : b.lvl, count = b.count === undefined ? 1 : b.count;
+    if (!Number.isInteger(rar) || rar < 0 || rar >= NR || !Number.isInteger(mut) || mut < 0 || mut >= NM || !Number.isInteger(lvl) || lvl < 1 || lvl > MAX_LVL ||
+      !Number.isInteger(count) || count < 1 || count > GIVE_MAX) return send(res, 422, { error: 'Invalid face.' });
+    const prof = parseJSON(await store.get('p:' + lname));
+    const asc = prof && Number.isInteger(prof.asc) ? prof.asc : 0;
+    const cap = maxRarFor(asc);
+    if (rar > cap) return send(res, 422, { error: lname + ' is on ascension ' + asc + ' and cannot hold a rarity above ' + cap + ' yet (their next sync would be refused).' });
+    const k = 'trbox:' + lname;
+    const cur = parseJSON(await store.get(k)) || [];
+    if (cur.length + count > BOX_MAX) return send(res, 409, { error: lname + "'s delivery box is full (" + cur.length + '/' + BOX_MAX + '). Wait until they have collected what is in it.' });
+    for (let i = 0; i < count; i++) cur.push({ d: crypto.randomBytes(6).toString('hex'), t: 'grant', why: 'grant', from: 'the owner', f: [rar, mut, lvl, 0] });
+    await store.set(k, JSON.stringify(cur), { ex: 7 * 86400 });
+    return send(res, 200, { ok: true, action, username: lname, note: 'Sent ' + count + ' face' + (count > 1 ? 's' : '') + ' to ' + lname + "'s backpack. They arrive when their game next checks in." });
   }
   if (action === 'revoke') {
     if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can revoke an admin.' });

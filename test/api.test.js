@@ -902,6 +902,34 @@ async function t(name, fn) {
     await tc('POST', { action: 'ack' }, T1); await tc('POST', { action: 'ack' }, T2);
   });
 
+  await t('owner panel: giveface sends faces to a player\'s delivery box, owner only, validated, capped by ascension and by box size', async () => {
+    const u = require('../lib/util'), store = getStore();
+    const give = (body, tok) => adm({ action: 'giveface', username: 'trade_b', ...body }, tok, 97);
+    const boxOf = async () => { await store.del('rl:trade:trade_b'); return (await tc('GET', undefined, T2)).j.box; };
+    const clear = async () => { const b = await boxOf(); if (b.length) await tc('POST', { action: 'claim', ids: b.map((d) => d.d) }, T2); };
+    await clear();
+    assert.strictEqual((await give({ rar: 1, mut: 0, lvl: 1 }, T1)).code, 403, 'a normal player cannot (staff are refused by the same owner-tier check)');
+    assert.strictEqual((await give({ rar: 1, mut: 0, lvl: 1 })).code, 401, 'sign-in needed');
+    assert.strictEqual((await adm({ action: 'giveface', username: 'nobody_x', rar: 1, mut: 0, lvl: 1 }, O, 97)).code, 404);
+    for (const bad of [{ rar: u.NR, mut: 0, lvl: 1 }, { rar: -1, mut: 0, lvl: 1 }, { rar: 1, mut: u.NM, lvl: 1 }, { rar: 1, mut: 0, lvl: 0 }, { rar: 1, mut: 0, lvl: 21 }, { rar: 1, mut: 0, lvl: 1, count: 11 }, { rar: 1.5, mut: 0, lvl: 1 }, { mut: 0, lvl: 1 }]) {
+      assert.strictEqual((await give(bad, O)).code, 422, JSON.stringify(bad));
+    }
+    assert.strictEqual((await boxOf()).length, 0, 'refused grants leave the box alone');
+    const cap = u.maxRarFor(0);
+    if (cap + 1 < u.NR) assert.strictEqual((await give({ rar: cap + 1, mut: 0, lvl: 1 }, O)).code, 422, 'above what their ascension can hold');
+    const r = await give({ rar: 1, mut: 1, lvl: 5, count: 2 }, O);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.match(r.j.note, /2 faces/);
+    const box = (await boxOf()).filter((d) => d.why === 'grant');
+    assert.strictEqual(box.length, 2); assert.deepStrictEqual(box[0].f, [1, 1, 5, 0]);
+    assert.notStrictEqual(box[0].d, box[1].d, 'each entry has its own id, so the client can tell them apart');
+    await clear();
+    assert.strictEqual((await boxOf()).length, 0, 'claimed grants are removed');
+    for (let i = 0; i < 3; i++) assert.strictEqual((await give({ rar: 0, mut: 0, lvl: 1, count: 10 }, O)).code, 200);
+    const full = await give({ rar: 0, mut: 0, lvl: 1 }, O);
+    assert.strictEqual(full.code, 409, 'a full box is never overwritten'); assert.match(full.j.error, /full/);
+    await clear();
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();

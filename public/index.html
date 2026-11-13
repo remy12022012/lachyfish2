@@ -2315,7 +2315,7 @@ function trBox(){
     if(bp.length>=BP_CAP){stuck++;continue;}
     f={id:G.nid++,rar:r,mut:m,lvl:l,tot:Math.max(0,+e.f[3]||0)};
     key=r+'_'+m;
-    if(e.why==='trade'&&!G.book[key]){G.book[key]=1;disc++;}
+    if((e.why==='trade'||e.why==='grant')&&!G.book[key]){G.book[key]=1;disc++;}
     bp.push(f);
     seen.push(e.d);if(seen.length>60)seen.shift();
     done.push(e.d);got.push([f,e]);
@@ -2326,6 +2326,7 @@ function trBox(){
   got.forEach(function(g){
     var nm=faceName(g[0]);
     if(g[1].why==='trade'){banner('TRADE COMPLETE!','You received '+nm+(g[1].from?' from '+g[1].from:''),'#ff5ac8');tone(660,0.12,'triangle',0.06);tone(990,0.2,'triangle',0.06,0.1);}
+    else if(g[1].why==='grant'){banner('GIFT RECEIVED!','You were given '+nm+' (Lv '+g[0].lvl+')','#7dffb0');tone(660,0.12,'triangle',0.06);tone(990,0.2,'triangle',0.06,0.1);}
     else toast(nm+' is back in your Backpack.',true);
   });
   trPost({action:'claim',ids:done},function(r){if(r.ok)trApply(r.j);});
@@ -2603,7 +2604,7 @@ window.addEventListener('keydown',function(e){
 // ---------- DEV PANEL (hidden, admin-gated) ----------
 // Test tools only. The cheats are local-only and never talk to the server; the single exception is the Server admin section (moderation tools), which calls /api/admin with the signed-in account's own session; admin rights come from a one-time code (see api/admin.js) and no password is typed or stored. The first cheat switches on test mode: the real save is backed up, and acctSubmit (the only code that uploads coins, faces and the cloud save) is blocked until the real save is restored or the save is wiped. The panel opens only for a signed-in account that the server says is an admin, so there is no password. This gate is a convenience: the cheats are local-only and the server enforces every real admin action.
 var DTK='reelFacesDevTaint',DBK='reelFacesDevBackup';
-var devTaint=false,devBackupMem='',devEl=null,devBadgeEl=null,devTaps=[],devKeys=[],devMsg='',devArm='',devPR=NR-1,devPM=0;
+var devTaint=false,devBackupMem='',devEl=null,devBadgeEl=null,devTaps=[],devKeys=[],devMsg='',devArm='',devPR=NR-1,devPM=0,devGR=NR-1,devGM=0,devGL=1,devGC=1;
 try{devTaint=localStorage.getItem(DTK)==='1';localStorage.removeItem('reelFacesDevLock');}catch(_){}
 function devBadgeSync(){
   try{
@@ -2712,6 +2713,14 @@ function devAdminSection(){
     +devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')
     +devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+devB('adm_quarantine','Quarantine')+devB('adm_unflag','Unflag')
     +(own?devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red')+devB('adm_devtag','Give DEV tag','green')+devB('adm_undevtag','Remove DEV tag'):'')+devB('adm_flags','Show flags')+`</div><div class='sech'>Chat mute</div><div class='note'>Stops the player above from talking in the chat for the time you pick.</div><div class='dg'>`+devB('adm_mute_10','Mute 10 min')+devB('adm_mute_60','Mute 1 hour')+devB('adm_mute_360','Mute 6 hours')+devB('adm_mute_1440','Mute 1 day')+devB('adm_mute_10080','Mute 7 days')+devB('adm_unmute','Unmute','green')+`</div>`;
+  if(own){
+    var gi,gro='',gmo='',glo='',gco='';
+    for(gi=0;gi<NR;gi++)gro+=`<option value='${gi}'${gi===devGR?' selected':''}>${RAR[gi].n}</option>`;
+    for(gi=0;gi<MUT.length;gi++)gmo+=`<option value='${gi}'${gi===devGM?' selected':''}>${MUT[gi].n}</option>`;
+    for(gi=1;gi<=MAXLV;gi++)glo+=`<option value='${gi}'${gi===devGL?' selected':''}>Lv ${gi}</option>`;
+    [1,2,3,5,10].forEach(function(c){gco+=`<option value='${c}'${c===devGC?' selected':''}>x${c}</option>`;});
+    h+=`<div class='sech'>Give faces</div><div class='note'>Sends faces to the player named above. They land in that player's Backpack the next time their game checks in. A player can only get rarities their ascension allows.</div><div class='row'><select class='acf' id='dgr'>${gro}</select><select class='acf' id='dgm'>${gmo}</select></div><div class='row'><select class='acf' id='dgl'>${glo}</select><select class='acf' id='dgc'>${gco}</select></div><div class='dg'>`+devB('adm_giveface','Give to backpack','green')+`</div>`;
+  }
   if(own)h+=`<div class='sech'>Danger zone</div><div class='note'>Wipe deletes every other account and save. Type ${WIPE_PHRASE} to enable it.</div><div class='row'><input class='acf' id='daw' maxlength='32' placeholder='${WIPE_PHRASE}' value='${devEsc(devAW)}' autocomplete='off' autocapitalize='off' spellcheck='false'></div><div class='dg'>`+devB('adm_wipeall',devArm==='wipeall'?'Tap again: WIPE ALL':'Wipe all accounts','red')+`</div>`;
   if(devFlags){
     fl=devFlags.flags||[];ac=devFlags.accounts||[];
@@ -2780,6 +2789,7 @@ function devAdmin(a){
   devArm='';devMsg='Working...';devRender();
   var mm=/^mute_(\d+)$/.exec(a),body={action:mm?'mute':a,username:devAU};
   if(mm)body.mins=+mm[1];
+  if(a==='giveface'){body.rar=devGR;body.mut=devGM;body.lvl=devGL;body.count=devGC;}
   devCall(body,function(j){devMsg=j.note||('Done: '+a+' '+(j.username||devAU));});
 }
 function devAct(d){
@@ -2821,7 +2831,7 @@ function devShow(){
       var b=e.target&&e.target.closest?e.target.closest('button'):null;
       if(b&&b.dataset&&b.dataset.d&&!b.disabled)devAct(b.dataset.d);
     });
-    devEl.addEventListener('change',function(e){var t=e.target;if(!t)return;if(t.id==='dpr')devPR=+t.value;else if(t.id==='dpm')devPM=+t.value;});
+    devEl.addEventListener('change',function(e){var t=e.target;if(!t)return;if(t.id==='dpr')devPR=+t.value;else if(t.id==='dpm')devPM=+t.value;else if(t.id==='dgr')devGR=+t.value;else if(t.id==='dgm')devGM=+t.value;else if(t.id==='dgl')devGL=+t.value;else if(t.id==='dgc')devGC=+t.value;});
     devEl.addEventListener('keydown',function(e){
       e.stopPropagation();
       if(e.key==='Escape')devHide();
