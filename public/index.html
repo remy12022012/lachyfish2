@@ -594,6 +594,7 @@ function xEvNow(){if(!xOn)return null;var n=xNow(),e=xSlot(Math.floor(n/XT.slot)
 // Multiplier of one kind ('luck','cash','mut') from the equipped rod and location, the running event and (for cash) location mastery.
 function xMul(k){
   if(!xOn||!G.x)return 1;
+  if(k==='chest'){var ec=xEvNow();return ec?ec.ev.chest:1;}
   var m=(k==='luck'||k==='cash')?XT.rods[G.x.rod][k]*XT.locs[G.x.loc][k]:1,e=xEvNow();
   if(e)m*=e.ev[k];
   if(k==='cash')m*=1+XT.mastery.cash*(G.x.mxp[G.x.loc]||0);
@@ -950,7 +951,7 @@ function stepExtra(){
     dirty=true;
   }
   if(!chest){
-    if(--chestT<=0)chest={x:rnd(60,Math.max(70,W-60)),y:y0+30,vx:rnd(-0.5,0.5),life:780,ph:rnd(0,6)};
+    chestT-=xMul('chest');if(chestT<=0)chest={x:rnd(60,Math.max(70,W-60)),y:y0+30,vx:rnd(-0.5,0.5),life:780,ph:rnd(0,6)};
   }else{
     chest.x+=chest.vx;if(chest.x<30||chest.x>W-30)chest.vx=-chest.vx;
     chest.y=y0+30+Math.sin(t*0.07+chest.ph)*5;
