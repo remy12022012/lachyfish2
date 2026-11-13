@@ -4,10 +4,10 @@
 // and every request is authorised by the caller's own session. Attempts are rate limited.
 const crypto = require('crypto');
 const { NAME_RE, NR, NM, maxRarFor, send, readBody, handler, clientIp, allow, authUser, parseJSON } = require('../lib/util');
-const { configured, redeem, adminOf, revoke, grantDev, removeDev } = require('../lib/adminCodes');
+const { configured, redeem, adminOf, revoke, grantAdmin, grantDev, removeDev } = require('../lib/adminCodes');
 const { MUTE_MAX, span, setMute } = require('../lib/mute');
 
-const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag', 'mute', 'unmute', 'giveface'];
+const ACTIONS = ['kick', 'ban', 'unban', 'reset', 'quarantine', 'unflag', 'revoke', 'devtag', 'undevtag', 'mute', 'unmute', 'giveface', 'makeadmin'];
 const GIVE_MAX = 10; // faces per grant
 const BOX_MAX = 30; // the delivery box holds this many entries (same limit as api/trade.js)
 const MAX_LVL = 20;
@@ -115,6 +115,15 @@ module.exports = handler(['POST'], async (req, res, store) => {
     for (let i = 0; i < count; i++) cur.push({ d: crypto.randomBytes(6).toString('hex'), t: 'grant', why: 'grant', from: 'the owner', f: [rar, mut, lvl, 0] });
     await store.set(k, JSON.stringify(cur), { ex: 7 * 86400 });
     return send(res, 200, { ok: true, action, username: lname, note: 'Sent ' + count + ' face' + (count > 1 ? 's' : '') + ' to ' + lname + "'s backpack. They arrive when their game next checks in." });
+  }
+  // Owner only. Makes a player a staff admin straight away, with no code. Staff can moderate (kick, ban, mute, quarantine, reset...) but every owner-only action
+  // (giving faces, making or revoking admins, DEV tags, wipe) is still refused for them. An owner can revoke at any time; it takes effect on their next request.
+  if (action === 'makeadmin') {
+    if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can make someone an admin.' });
+    if (lname === me) return send(res, 422, { error: 'You are already an admin.' });
+    if (tgt) return send(res, 409, { error: lname + ' is already an admin.' });
+    await grantAdmin(store, lname, JSON.parse(await store.get('u:' + lname)));
+    return send(res, 200, { ok: true, action, username: lname, note: lname + ' is now a staff admin: they can ban, mute and kick, but not give faces or make admins. Revoke admin removes it at any time.' });
   }
   if (action === 'revoke') {
     if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can revoke an admin.' });

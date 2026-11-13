@@ -2712,7 +2712,7 @@ function devAdminSection(){
   h+=`<div class='note'>${devEsc(acct.name)} is an ${own?'owner':'staff'} admin.</div><div class='row'><input class='acf' id='dau' maxlength='16' placeholder='Player' value='${devEsc(devAU)}' autocomplete='off' autocapitalize='off' spellcheck='false'></div><div class='dg'>`
     +devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')
     +devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+devB('adm_quarantine','Quarantine')+devB('adm_unflag','Unflag')
-    +(own?devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red')+devB('adm_devtag','Give DEV tag','green')+devB('adm_undevtag','Remove DEV tag'):'')+devB('adm_flags','Show flags')+`</div><div class='sech'>Chat mute</div><div class='note'>Stops the player above from talking in the chat for the time you pick.</div><div class='dg'>`+devB('adm_mute_10','Mute 10 min')+devB('adm_mute_60','Mute 1 hour')+devB('adm_mute_360','Mute 6 hours')+devB('adm_mute_1440','Mute 1 day')+devB('adm_mute_10080','Mute 7 days')+devB('adm_unmute','Unmute','green')+`</div>`;
+    +(own?devB('adm_makeadmin',devArm==='makeadmin'?'Confirm make admin':'Make admin','green')+devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red')+devB('adm_devtag','Give DEV tag','green')+devB('adm_undevtag','Remove DEV tag'):'')+devB('adm_flags','Show flags')+`</div><div class='sech'>Chat mute</div><div class='note'>Stops the player above from talking in the chat for the time you pick.</div><div class='dg'>`+devB('adm_mute_10','Mute 10 min')+devB('adm_mute_60','Mute 1 hour')+devB('adm_mute_360','Mute 6 hours')+devB('adm_mute_1440','Mute 1 day')+devB('adm_mute_10080','Mute 7 days')+devB('adm_unmute','Unmute','green')+`</div>`;
   if(own){
     var gi,gro='',gmo='',glo='',gco='';
     for(gi=0;gi<NR;gi++)gro+=`<option value='${gi}'${gi===devGR?' selected':''}>${RAR[gi].n}</option>`;
@@ -2785,7 +2785,7 @@ function devAdmin(a){
     devArm='';devMsg='Wiping...';devRender();devWipe(0,0);return;
   }
   if(!/^[A-Za-z0-9_.-]{3,16}$/.test(devAU)){devMsg='Enter the player username (3 to 16 letters, digits, _ . -).';devRender();return;}
-  if((a==='ban'||a==='reset'||a==='revoke')&&(devArm!==a||devArmU!==devAU)){devArm=a;devArmU=devAU;devMsg='Press '+a+' again to confirm for '+devAU+'.';devRender();return;}
+  if((a==='ban'||a==='reset'||a==='revoke'||a==='makeadmin')&&(devArm!==a||devArmU!==devAU)){devArm=a;devArmU=devAU;devMsg='Press '+a+' again to confirm for '+devAU+'.';devRender();return;}
   devArm='';devMsg='Working...';devRender();
   var mm=/^mute_(\d+)$/.exec(a),body={action:mm?'mute':a,username:devAU};
   if(mm)body.mins=+mm[1];

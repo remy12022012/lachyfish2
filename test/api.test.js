@@ -930,6 +930,29 @@ async function t(name, fn) {
     await clear();
   });
 
+  await t('owner panel: an owner can make a player a staff admin without a code and revoke it at any time; granted staff cannot give faces or make admins', async () => {
+    const G1 = await signupAs('grant_s', 'grant-pw-1', 98);
+    const ad = (body, tok) => adm(body, tok, 98);
+    assert.strictEqual((await ad({ action: 'makeadmin', username: 'grant_s' }, G1)).code, 403, 'a normal player cannot');
+    assert.strictEqual((await ad({ action: 'makeadmin', username: 'nobody_x' }, O)).code, 404);
+    assert.strictEqual((await ad({ action: 'makeadmin', username: 'boss_1' }, O)).code, 422, 'not yourself');
+    const r = await ad({ action: 'makeadmin', username: 'grant_s' }, O);
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    const s = await statusOf(G1, 98); assert.strictEqual(s.admin, true); assert.strictEqual(s.tier, 'staff');
+    assert.strictEqual((await ad({ action: 'makeadmin', username: 'grant_s' }, O)).code, 409, 'already an admin');
+    assert.strictEqual((await ad({ action: 'mute', username: 'trade_b', mins: 5 }, G1)).code, 200, 'staff can mute');
+    assert.strictEqual((await ad({ action: 'unmute', username: 'trade_b' }, G1)).code, 200);
+    assert.strictEqual((await ad({ action: 'giveface', username: 'trade_b', rar: 1, mut: 0, lvl: 1 }, G1)).code, 403, 'staff cannot give faces');
+    assert.strictEqual((await ad({ action: 'giveface', username: 'grant_s', rar: 1, mut: 0, lvl: 1 }, G1)).code, 403, 'nor to themselves');
+    assert.strictEqual((await ad({ action: 'makeadmin', username: 'trade_b' }, G1)).code, 403, 'staff cannot make admins');
+    assert.strictEqual((await ad({ action: 'revoke', username: 'boss_1' }, G1)).code, 403, 'staff cannot revoke');
+    assert.strictEqual((await ad({ action: 'revoke', username: 'grant_s' }, O)).code, 200, 'owner revokes at any time');
+    assert.strictEqual((await statusOf(G1, 98)).admin, false);
+    assert.strictEqual((await ad({ action: 'mute', username: 'trade_b', mins: 5 }, G1)).code, 403, 'revoked at once');
+    assert.strictEqual((await ad({ action: 'makeadmin', username: 'grant_s' }, O)).code, 200, 'can be made admin again');
+    assert.strictEqual((await ad({ action: 'revoke', username: 'grant_s' }, O)).code, 200);
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();
