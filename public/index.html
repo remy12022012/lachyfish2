@@ -2345,7 +2345,7 @@ function ascend(){
 }
 function onAct(e){
   var b=e.target&&e.target.closest?e.target.closest('button'):null;
-  if(!b||!b.dataset||b.disabled)return;
+  if(!b||!b.dataset||!b.dataset.a||b.disabled)return; // buttons with data-xa belong to xAct
   if(b.dataset.a==='chsend'){chatSend();return;} // no tab redraw: it would throw away what is being typed
   var a=b.dataset.a,f,c,k;
   if(a==='crew'){f=faceById(+b.dataset.id);if(f)setCrew(f,!f.crew);}
