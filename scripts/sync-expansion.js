@@ -4,7 +4,7 @@
 // node scripts/sync-expansion.js --check exits 1 when the page is out of date (used by the tests)
 const fs = require('fs'), path = require('path'), x = require('../lib/expansion');
 const file = path.join(__dirname, '..', 'public', 'index.html');
-const tables = () => 'var XT=' + JSON.stringify({ slot: x.SLOT_MS, chance: x.EVENT_CHANCE, events: x.EVENTS, rods: x.RODS, locs: x.LOCATIONS, mastery: { max: x.MASTERY_MAX_LV, cash: x.MASTERY_CASH }, chestMax: x.CHEST_MAX }) + ';';
+const tables = () => 'var XT=' + JSON.stringify({ slot: x.SLOT_MS, chance: x.EVENT_CHANCE, events: x.EVENTS, rods: x.RODS, locs: x.LOCATIONS, mastery: { max: x.MASTERY_MAX_LV, cash: x.MASTERY_CASH, xp: x.MASTERY_XP }, chestMax: x.CHEST_MAX }) + ';';
 const RE = /\/\*X:TABLES\*\/[\s\S]*?\/\*X:END\*\//;
 const html = fs.readFileSync(file, 'utf8');
 if (!RE.test(html)) { console.error('expansion markers are missing from public/index.html'); process.exit(1); }

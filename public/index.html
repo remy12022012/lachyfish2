@@ -563,20 +563,21 @@ var loading=true,welcome=0,nbAnim=null;
 var view='fish',baseScroll=0,baseMax=0,bdrag=null,selId=0,selHtml='',recent=[],sinkers=[],ultraAnim=null,bgBase=null,bgFarm=null,cells=[];
 
 // ---------- EXPANSION (owner preview; lib/expansion.js is the source of the tables, scripts/sync-expansion.js copies them here) ----------
-/*X:TABLES*/var XT={"slot":1800000,"chance":0.6,"events":[{"id":"bloodmoon","n":"Blood Moon","dur":480000,"luck":2,"cash":1,"mut":1.5,"chest":1,"col":"#ff3b3b","d":"Rarer catches under a red moon"},{"id":"goldentide","n":"Golden Tide","dur":480000,"luck":1,"cash":2,"mut":1,"chest":1,"col":"#ffd23f","d":"Everything sells for double"},{"id":"voidstorm","n":"Void Storm","dur":360000,"luck":1.5,"cash":1,"mut":2,"chest":1,"col":"#9b5cff","d":"Void-only catches rise from the deep"},{"id":"luckyhour","n":"Lucky Hour","dur":600000,"luck":2.5,"cash":1,"mut":1,"chest":1,"col":"#5cf27a","d":"A big luck bonus for everyone"},{"id":"treasurerain","n":"Treasure Rain","dur":420000,"luck":1,"cash":1,"mut":1,"chest":3,"col":"#ffb347","d":"Treasure chests pour from the sky"}],"rods":[{"id":"twig","n":"Twig Rod","cost":0,"luck":1,"cash":1},{"id":"bamboo","n":"Bamboo Rod","cost":50000,"luck":1.1,"cash":1.05},{"id":"carbon","n":"Carbon Rod","cost":5000000,"luck":1.25,"cash":1.1},{"id":"coral","n":"Coral Rod","cost":500000000,"luck":1.45,"cash":1.2},{"id":"abyssal","n":"Abyssal Rod","cost":50000000000,"luck":1.7,"cash":1.3},{"id":"void","n":"Void Rod","cost":5000000000000,"luck":2,"cash":1.5}],"locs":[{"id":"pond","n":"Quiet Pond","asc":0,"cost":0,"luck":1,"cash":1},{"id":"reef","n":"Coral Reef","asc":0,"cost":2000000,"luck":1.1,"cash":1.05},{"id":"cave","n":"Glow Cave","asc":1,"cost":5000000000,"luck":1.2,"cash":1.1},{"id":"trench","n":"Abyss Trench","asc":3,"cost":5000000000000,"luck":1.35,"cash":1.15},{"id":"rift","n":"Void Rift","asc":6,"cost":5000000000000000,"luck":1.5,"cash":1.25}],"mastery":{"max":20,"cash":0.01},"chestMax":50};/*X:END*/
+/*X:TABLES*/var XT={"slot":1800000,"chance":0.6,"events":[{"id":"bloodmoon","n":"Blood Moon","dur":480000,"luck":2,"cash":1,"mut":1.5,"chest":1,"col":"#ff3b3b","d":"Rarer catches under a red moon"},{"id":"goldentide","n":"Golden Tide","dur":480000,"luck":1,"cash":2,"mut":1,"chest":1,"col":"#ffd23f","d":"Everything sells for double"},{"id":"voidstorm","n":"Void Storm","dur":360000,"luck":1.5,"cash":1,"mut":2,"chest":1,"col":"#9b5cff","d":"Void-only catches rise from the deep"},{"id":"luckyhour","n":"Lucky Hour","dur":600000,"luck":2.5,"cash":1,"mut":1,"chest":1,"col":"#5cf27a","d":"A big luck bonus for everyone"},{"id":"treasurerain","n":"Treasure Rain","dur":420000,"luck":1,"cash":1,"mut":1,"chest":3,"col":"#ffb347","d":"Treasure chests pour from the sky"}],"rods":[{"id":"twig","n":"Twig Rod","cost":0,"luck":1,"cash":1},{"id":"bamboo","n":"Bamboo Rod","cost":50000,"luck":1.1,"cash":1.05},{"id":"carbon","n":"Carbon Rod","cost":5000000,"luck":1.25,"cash":1.1},{"id":"coral","n":"Coral Rod","cost":500000000,"luck":1.45,"cash":1.2},{"id":"abyssal","n":"Abyssal Rod","cost":50000000000,"luck":1.7,"cash":1.3},{"id":"void","n":"Void Rod","cost":5000000000000,"luck":2,"cash":1.5}],"locs":[{"id":"pond","n":"Quiet Pond","asc":0,"cost":0,"luck":1,"cash":1},{"id":"reef","n":"Coral Reef","asc":0,"cost":2000000,"luck":1.1,"cash":1.05},{"id":"cave","n":"Glow Cave","asc":1,"cost":5000000000,"luck":1.2,"cash":1.1},{"id":"trench","n":"Abyss Trench","asc":3,"cost":5000000000000,"luck":1.35,"cash":1.15},{"id":"rift","n":"Void Rift","asc":6,"cost":5000000000000000,"luck":1.5,"cash":1.25}],"mastery":{"max":20,"cash":0.01,"xp":10},"chestMax":50};/*X:END*/
 var xOn=false,xSkew=0;
 function xNow(){return Date.now()+xSkew;}
 function xApply(j){if(!j)return;if(typeof j.now==='number'&&isFinite(j.now))xSkew=j.now-Date.now();xOn=!!j.expansion;if(xOn)xInit();xDockSync();dirty=true;}
-function xInit(){if(!G.x)G.x={rod:0,rods:[0],loc:0,locs:[0],mxp:{},chests:0};return G.x;}
+function xInit(){if(!G.x)G.x={rod:0,rods:[0],loc:0,locs:[0],mxp:{},mxx:{},chests:0};if(!G.x.mxx)G.x.mxx={};return G.x;}
 // Brings a loaded G.x inside what the server accepts (see validateX in lib/expansion.js).
 function xClean(x,asc){
   if(!x||typeof x!=='object')return undefined;
-  var o={rod:0,rods:[0],loc:0,locs:[0],mxp:{},chests:0},k,i,v;
+  var o={rod:0,rods:[0],loc:0,locs:[0],mxp:{},mxx:{},chests:0},k,i,v;
   if(Array.isArray(x.rods))x.rods.forEach(function(r){if(r%1===0&&r>=0&&r<XT.rods.length&&o.rods.indexOf(r)<0)o.rods.push(r);});
   if(Array.isArray(x.locs))x.locs.forEach(function(r){if(r%1===0&&r>=0&&r<XT.locs.length&&XT.locs[r].asc<=asc&&o.locs.indexOf(r)<0)o.locs.push(r);});
   if(o.rods.indexOf(x.rod)>=0)o.rod=x.rod;
   if(o.locs.indexOf(x.loc)>=0)o.loc=x.loc;
   if(x.mxp&&typeof x.mxp==='object')for(k in x.mxp){i=+k;v=x.mxp[k];if(i%1===0&&i>=0&&i<XT.locs.length&&v>=0&&v<=XT.mastery.max)o.mxp[i]=Math.floor(v);}
+  if(x.mxx&&typeof x.mxx==='object')for(k in x.mxx){i=+k;v=x.mxx[k];if(i%1===0&&i>=0&&i<XT.locs.length&&v>=0&&v<=XT.mastery.xp*(XT.mastery.max+1)*(XT.mastery.max+1))o.mxx[i]=Math.floor(v);}
   o.chests=clamp(Math.floor(+x.chests||0),0,XT.chestMax);
   return o;
 }
@@ -601,6 +602,15 @@ function xMul(k){
   return m;
 }
 
+// Mastery: every catch earns progress at the equipped place; level L to L+1 takes xp*(L+1)^2 catches, and each level adds cash (see xMul).
+function xMastery(){
+  if(!xOn||!G.x)return;
+  var x=xInit(),i=x.loc,lv=x.mxp[i]||0,xp,need;
+  if(lv>=XT.mastery.max)return;
+  xp=(x.mxx[i]||0)+1;need=XT.mastery.xp*(lv+1)*(lv+1);
+  if(xp>=need){xp-=need;x.mxp[i]=lv+1;toast(XT.locs[i].n+' mastery level '+(lv+1)+'!',true);}
+  x.mxx[i]=xp;dirty=true;
+}
 // ---- expansion UI: dock, live-event pill, Locations / Rods / Events panels (only built once the owner preview flag is on) ----
 var X_TABS={xloc:1,xrod:1,xevt:1};
 function xFmtT(ms){var s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60);return m>=60?Math.floor(m/60)+'h '+(m%60)+'m':m>0?m+'m '+(s%60)+'s':s+'s';}
@@ -630,7 +640,7 @@ function xCard(rc,title,sub,btn){return `<div class='card' style='--rc:${rc};gri
 function xLocHtml(){
   var x=xInit(),h=`<div class='note'>Each place changes your luck and cash. Mastery adds +${Math.round(XT.mastery.cash*100)}% cash per level.</div>`;
   XT.locs.forEach(function(l,i){
-    var own=x.locs.indexOf(i)>=0,btn,sub=`Luck x${l.luck} &bull; Cash x${l.cash} &bull; Mastery Lv ${x.mxp[i]||0}/${XT.mastery.max}`;
+    var own=x.locs.indexOf(i)>=0,btn,sub=`Luck x${l.luck} &bull; Cash x${l.cash} &bull; Mastery Lv ${x.mxp[i]||0}/${XT.mastery.max}${(x.mxp[i]||0)<XT.mastery.max?' ('+((x.mxx&&x.mxx[i])||0)+'/'+(XT.mastery.xp*((x.mxp[i]||0)+1)*((x.mxp[i]||0)+1))+' catches)':''}`;
     if(x.loc===i)btn=`<button class='btn' disabled>Here</button>`;
     else if(own)btn=`<button class='btn' data-xa='loc' data-i='${i}'>Go</button>`;
     else if(G.asc<l.asc)btn=`<small>Needs ${l.asc} ascension${l.asc===1?'':'s'}</small>`;
@@ -949,7 +959,7 @@ function catchFace(x,y,src){
 }
 function landCatch(x,y,src){
   var r=rollRar(),m=rollMut(),key=r+'_'+m,isNew=!G.book[key],f=makeFace(r,m,1),nm=faceName(f),col=faceCol(f);
-  var prevBest=bestRar();G.book[key]=(G.book[key]||0)+1;G.caught++;if(isNew)disc++;if(r>prevBest)newBest(r,m,prevBest);
+  var prevBest=bestRar();G.book[key]=(G.book[key]||0)+1;G.caught++;xMastery();if(isNew)disc++;if(r>prevBest)newBest(r,m,prevBest);
   qCatch(r,m);
   x=clamp(x,10,W-10);
   var yy=Math.max(y,y0+8);
