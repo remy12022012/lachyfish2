@@ -953,6 +953,43 @@ async function t(name, fn) {
     assert.strictEqual((await ad({ action: 'revoke', username: 'grant_s' }, O)).code, 200);
   });
 
+  await t('expansion: the event schedule is deterministic, never repeats back to back, stays inside its slot and runs a sensible share of the time', async () => {
+    const x = require('../lib/expansion'), t0 = Date.UTC(2026, 10, 13), s0 = Math.floor(t0 / x.SLOT_MS);
+    let on = 0, total = 7 * 1440;
+    for (let m = 0; m < total; m++) {
+      const a = x.activeEvent(t0 + m * 60000), b = x.activeEvent(t0 + m * 60000);
+      assert.deepStrictEqual(a, b, 'same time, same answer');
+      if (a) on++;
+    }
+    assert.ok(on / total > 0.05 && on / total < 0.3, 'events run ' + (on / total * 100).toFixed(1) + '% of the time');
+    for (let s = s0; s < s0 + 1000; s++) {
+      const e = x.slotEvent(s), n = x.slotEvent(s + 1);
+      if (e) { assert.ok(e.start >= s * x.SLOT_MS && e.end <= (s + 1) * x.SLOT_MS, 'event stays inside its slot'); assert.ok(e.ev.dur < x.SLOT_MS); }
+      if (e && n) assert.notStrictEqual(e.ev.id, n.ev.id, 'no event twice in a row');
+    }
+    const nx = x.nextEvent(t0);
+    assert.ok(nx && nx.start > t0 && x.EVENTS.some((v) => v.id === nx.id), 'there is always a next event within a few hours');
+    assert.strictEqual(x.activeEvent(nx.start).id, nx.id, 'the next event is active when it starts');
+  });
+
+  await t('expansion: only an owner can switch the preview, and /api/me reports the flag to owners only, with the server time for everyone', async () => {
+    const sw = (on, tok) => adm({ action: 'expansion', on }, tok, 99);
+    const me = (tok) => call('GET', '/api/me', undefined, tok);
+    assert.strictEqual((await sw(true, T1)).code, 403, 'a normal player cannot switch it');
+    assert.strictEqual((await sw(true)).code, 401, 'sign-in needed');
+    assert.strictEqual((await sw('yes', O)).code, 422, 'on must be a boolean');
+    let o = (await me(O)).j;
+    assert.strictEqual(o.expansion, false, 'off by default');
+    assert.ok(Math.abs(o.now - Date.now()) < 5000, 'me carries the server time');
+    assert.strictEqual((await sw(true, O)).code, 200);
+    assert.strictEqual((await me(O)).j.expansion, true, 'the owner sees it');
+    const p = (await me(T1)).j;
+    assert.strictEqual(p.expansion, false, 'players never see it while it is a preview');
+    assert.ok(Math.abs(p.now - Date.now()) < 5000, 'players still get the server time');
+    assert.strictEqual((await sw(false, O)).code, 200);
+    assert.strictEqual((await me(O)).j.expansion, false, 'switched off again');
+  });
+
   console.log(process.exitCode ? '\nSome tests FAILED' : '\nAll ' + passed + ' API tests passed');
   server.close(); process.exit(process.exitCode || 0);
 })();

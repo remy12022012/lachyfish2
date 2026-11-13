@@ -76,6 +76,14 @@ module.exports = handler(['POST'], async (req, res, store) => {
     if (b.confirm !== WIPE_PHRASE) return send(res, 422, { error: 'To delete every account, also send confirm: "' + WIPE_PHRASE + '".' });
     return send(res, 200, await wipeAll(store, me));
   }
+  // Owner only. Turns the expansion preview on or off for owners. The flag lives in one key (cfg:expansion); api/me.js reports it to owners only, so
+  // regular players never see the new systems until the owner decides to release them.
+  if (action === 'expansion') {
+    if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can switch the expansion preview.' });
+    if (typeof b.on !== 'boolean') return send(res, 422, { error: 'Send on: true or false.' });
+    if (b.on) await store.set('cfg:expansion', '1'); else await store.del('cfg:expansion');
+    return send(res, 200, { ok: true, action, on: b.on });
+  }
   if (action === 'flags') {
     // The anti-cheat feed (newest first): which accounts sent impossible (hard) or suspicious (soft) numbers, and why.
     const raw = await store.lrange('flagfeed', 0, 99);
