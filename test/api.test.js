@@ -1250,6 +1250,26 @@ async function t(name, fn) {
     assert.strictEqual(x.tourneyReward(1e6).n, 'Finisher');
   });
 
+  await t('rate limiter: a counter left without an expiry heals itself instead of blocking the player for good', async () => {
+    const { allow } = require('../lib/util');
+    const st = getStore();
+    await st.del('rl:stuck:key');
+    // A normal window: the first hit passes, the second is blocked, and the key expires on its own.
+    assert.strictEqual(await allow(st, 'stuck:key', 1, 5), true, 'first hit passes');
+    assert.strictEqual(await allow(st, 'stuck:key', 1, 5), false, 'second hit is blocked');
+    const ttl = await st.ttl('rl:stuck:key');
+    assert.ok(ttl > 0 && ttl <= 5, 'the window expires (ttl ' + ttl + ')');
+    // A crash between incr and expire leaves a counter with no expiry (Redis TTL -1). It used to block forever.
+    await st.set('rl:stuck:key', '9');
+    assert.strictEqual(await st.ttl('rl:stuck:key'), -1, 'the counter has no expiry');
+    assert.strictEqual(await allow(st, 'stuck:key', 1, 5), false, 'the stuck hit is still blocked');
+    const healed = await st.ttl('rl:stuck:key');
+    assert.ok(healed > 0 && healed <= 5, 'the blocked hit gave the counter an expiry (ttl ' + healed + ')');
+    await st.del('rl:stuck:key');
+    assert.strictEqual(await allow(st, 'stuck:key', 1, 5), true, 'once the window is over the player can sync again');
+    await st.del('rl:stuck:key');
+  });
+
   await t('expansion: the tables in public/index.html match lib/expansion.js (run node scripts/sync-expansion.js to fix)', async () => {
     const { spawnSync } = require('child_process');
     const r = spawnSync(process.execPath, [require('path').join(__dirname, '..', 'scripts', 'sync-expansion.js'), '--check']);
