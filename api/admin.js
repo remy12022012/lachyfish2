@@ -81,8 +81,11 @@ module.exports = handler(['POST'], async (req, res, store) => {
   if (action === 'expansion') {
     if (adm.tier !== 'owner') return send(res, 403, { error: 'Only an owner can switch the expansion preview.' });
     if (typeof b.on !== 'boolean') return send(res, 422, { error: 'Send on: true or false.' });
-    if (b.on) await store.set('cfg:expansion', '1'); else await store.del('cfg:expansion');
-    return send(res, 200, { ok: true, action, on: b.on });
+    if (b.all !== undefined && typeof b.all !== 'boolean') return send(res, 422, { error: 'Send all: true or false.' });
+    // all: true releases the expansion to every player; otherwise it stays an owner-only preview.
+    const all = !!(b.on && b.all);
+    if (b.on) await store.set('cfg:expansion', all ? 'all' : '1'); else await store.del('cfg:expansion');
+    return send(res, 200, { ok: true, action, on: b.on, all });
   }
   if (action === 'flags') {
     // The anti-cheat feed (newest first): which accounts sent impossible (hard) or suspicious (soft) numbers, and why.

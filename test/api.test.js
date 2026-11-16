@@ -505,6 +505,23 @@ async function t(name, fn) {
     assert.ok(run({ caught: 5000 }, {}, prev).soft.includes('catch rate'));
     assert.ok(run({}, { g: { gems: 100 } }, prev).soft.includes('gem rate'));
   });
+  await t('inspect(): a regular player with expansion data (G.x) gets the CASH_MAX income headroom, but no more, and payouts from the wheel or promo codes stay clean', async () => {
+    const { inspect } = require('../lib/cheat'), X = require('../lib/expansion'), now = Date.now();
+    const gx = { rod: 0, rods: [0], loc: 0, locs: [0] };
+    const run = (o, x, prev) => { const b = mk(o, x); return inspect(b, JSON.parse(b.save), prev || null, now); };
+    // Find an income that is just over the ceiling of a save without G.x.
+    let lo = 10;
+    while (!run({ inc: lo }, {}).soft.includes('income')) { lo *= 1.1; assert.ok(lo < 1e12, 'a ceiling exists'); }
+    assert.deepStrictEqual(run({ inc: lo }, { g: { x: gx } }).soft.filter((r) => r === 'income'), [], 'with G.x the same income is believable (it is below the CASH_MAX ceiling)');
+    // Far past even the expansion ceiling is still caught.
+    const wild = lo * X.CASH_MAX * 1.2;
+    const w = run({ inc: wild }, { g: { x: gx } });
+    assert.ok(w.soft.includes('income') || w.hard.includes('income'), 'beyond CASH_MAX is still flagged');
+    // A Big purse (10 minutes of income) or the WELCOME promo cash, a few seconds after a sync, must not look like a coin jump.
+    const prev = { t: now - 5000, rc: 1000, peak: 1000, incLast: 10, caught: 5, asc: 0, gems: 0 };
+    const r = run({ coins: 1000 + 10 * 600 + 300 * 10 }, { g: { x: gx } }, prev);
+    assert.deepStrictEqual([r.hard, r.soft], [[], []], 'wheel and promo payouts are inside the allowance');
+  });
   await t('upgrade caps rise with each ascension up to the final max; old clients without ucv are only soft', async () => {
     const { inspect, upCap, UP_MAX } = require('../lib/cheat'), now = Date.now();
     const run = (o, x) => { const b = mk(o, x); return inspect(b, JSON.parse(b.save), null, now); };
@@ -988,6 +1005,30 @@ async function t(name, fn) {
     assert.ok(Math.abs(p.now - Date.now()) < 5000, 'players still get the server time');
     assert.strictEqual((await sw(false, O)).code, 200);
     assert.strictEqual((await me(O)).j.expansion, false, 'switched off again');
+  });
+
+  await t('expansion: an owner can release it to every player, and pull it back to the owner-only preview', async () => {
+    const sw = (b, tok) => adm(Object.assign({ action: 'expansion' }, b), tok, 99);
+    const me = (tok) => call('GET', '/api/me', undefined, tok);
+    try {
+      assert.strictEqual((await sw({ on: true, all: true }, T1)).code, 403, 'a normal player cannot release it');
+      assert.strictEqual((await sw({ on: true, all: 'yes' }, O)).code, 422, 'all must be a boolean');
+      const r = await sw({ on: true, all: true }, O);
+      assert.strictEqual(r.code, 200);
+      assert.strictEqual(r.j.all, true);
+      let p = (await me(T1)).j;
+      assert.strictEqual(p.expansion, true, 'players get the expansion once it is released');
+      assert.strictEqual(p.expansionAll, true);
+      assert.strictEqual((await me(O)).j.expansion, true, 'the owner keeps it');
+      assert.strictEqual((await sw({ on: true }, O)).code, 200);
+      p = (await me(T1)).j;
+      assert.strictEqual(p.expansion, false, 'pulled back to the owner-only preview');
+      assert.strictEqual(p.expansionAll, false);
+      assert.strictEqual((await me(O)).j.expansion, true);
+      assert.strictEqual((await sw({ on: false, all: true }, O)).code, 200);
+      assert.strictEqual((await me(T1)).j.expansion, false, 'off means off, even if all is sent');
+      assert.strictEqual((await me(O)).j.expansion, false);
+    } finally { await getStore().del('cfg:expansion'); }
   });
 
   await t('expansion: a cloud save may carry G.x only when it is in bounds; saves without it are untouched', async () => {

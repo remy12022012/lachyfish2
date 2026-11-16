@@ -14,7 +14,8 @@ async function gate(req, res, store) {
   const lname = await authUser(req, store);
   if (!lname) { send(res, 401, { error: 'Please sign in again.' }); return null; }
   const [flag, adm] = await Promise.all([store.get('cfg:expansion'), adminOf(store, lname)]);
-  if (!(flag && adm && adm.tier === 'owner')) { send(res, 404, { error: 'Not found.' }); return null; }
+  // Flag '1' = owner preview, 'all' = released to every player (same rule as /api/me).
+  if (!(flag && (flag === 'all' || (adm && adm.tier === 'owner')))) { send(res, 404, { error: 'Not found.' }); return null; }
   return lname;
 }
 

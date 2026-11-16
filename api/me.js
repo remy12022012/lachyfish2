@@ -12,9 +12,9 @@ module.exports = handler(['GET'], async (req, res, store) => {
   const rec = parseJSON(u);
   if (!rec) return send(res, 401, { error: 'Please sign in again.' });
   // now: server time in ms, so the client can correct its clock for the global event schedule (lib/expansion.js).
-  // expansion: the preview flag (owner-only admin action). Only owners ever receive true, so regular players never see the new systems.
+  // expansion: the flag (owner-only admin action). '1' is the owner preview: only owners receive true. 'all' releases it to every player.
   send(res, 200, {
     name: rec.name, rank: rk === null ? 0 : rk + 1, total: total || 0, save: save || null,
-    now: Date.now(), expansion: !!(flag && adm && adm.tier === 'owner'),
+    now: Date.now(), expansion: !!(flag && (flag === 'all' || (adm && adm.tier === 'owner'))), expansionAll: flag === 'all',
   });
 });
