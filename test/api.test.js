@@ -1018,6 +1018,238 @@ async function t(name, fn) {
       assert.strictEqual(u.validateSave(save(Object.assign({}, base, { mxx })), { asc: 0 }), false, JSON.stringify(mxx));
   });
 
+  await t('expansion: level, XP, title, achievements, chest tiers and event catches (G.x.lv, xp, ttl, xa, cht, evc) are bounds-checked', async () => {
+    const u = require('../lib/util'), x = require('../lib/expansion');
+    const save = (gx) => JSON.stringify({ S: u.SEASON, G: { asc: 0, x: gx }, faces: [] });
+    const base = { rod: 0, rods: [0], loc: 0, locs: [0] };
+    const ok = (extra) => u.validateSave(save(Object.assign({}, base, extra)), { asc: 0 });
+    assert.strictEqual(ok({ lv: 7, xp: 12, ttl: 'lv10', xa: { x_leg: 1, x_1k: 1 }, cht: [3, 2, 1, 0, 0], evc: 40 }), true);
+    assert.strictEqual(ok({ lv: x.LEVEL_MAX, xp: 0 }), true, 'max level has no progress left');
+    assert.strictEqual(ok({ lv: 3, xp: x.levelNeed(3) }), true, 'the exact bound is fine');
+    assert.strictEqual(ok({ ttl: '' }), true, 'no title equipped');
+    const bad = [
+      { lv: 0 }, { lv: x.LEVEL_MAX + 1 }, { lv: 2.5 }, { lv: '5' }, { lv: 3, xp: x.levelNeed(3) + 1 }, { lv: x.LEVEL_MAX, xp: 1 }, { xp: -1 },
+      { ttl: 'god' }, { ttl: 5 }, { xa: { nope: 1 } }, { xa: { x_leg: 2 } }, { xa: [] }, { xa: null },
+      { cht: [1, 2, 3] }, { cht: [1, 1, 1, 1, -1] }, { cht: [0, 0, 0, 0, 0.5] }, { cht: [x.CHEST_MAX, 1, 0, 0, 0] }, { cht: [30, 0, 0, 0, 0], chests: 30 },
+      { evc: -1 }, { evc: 1.5 }, { evc: 2e9 },
+    ];
+    for (const b of bad) assert.strictEqual(ok(b), false, JSON.stringify(b));
+    assert.strictEqual(x.CHEST_TIERS.length, 5);
+    for (let i = 1; i < x.CHEST_TIERS.length; i++) assert.ok(x.CHEST_TIERS[i].w < x.CHEST_TIERS[i - 1].w && x.CHEST_TIERS[i].m > x.CHEST_TIERS[i - 1].m, 'higher tiers are rarer and pay more');
+    assert.ok(x.XACH.every((a) => a.id && a.n && a.d && a.i), 'every achievement has an id, name, description and icon');
+    assert.strictEqual(new Set(x.XACH.map((a) => a.id)).size, x.XACH.length, 'achievement ids are unique');
+    assert.ok(x.CASH_MAX > 1 && x.CASH_MAX < 10, 'the shared income cap stays modest: ' + x.CASH_MAX);
+  });
+
+  await t('expansion: rod evolution tiers (G.x.ev) and materials (G.x.mat) are bounds-checked', async () => {
+    const u = require('../lib/util'), x = require('../lib/expansion');
+    const save = (gx, asc) => JSON.stringify({ S: u.SEASON, G: { asc: asc || 0, x: gx }, faces: [] });
+    const base = { rod: 1, rods: [0, 1], loc: 0, locs: [0] };
+    const ok = (extra) => u.validateSave(save(Object.assign({}, base, extra)), { asc: 0 });
+    const ev = (a) => a.concat(new Array(x.RODS.length - a.length).fill(0));
+    assert.strictEqual(ok({ ev: ev([1, 3]), mat: { scale: 50, pearl: 0, shard: x.MAT_MAX } }), true);
+    assert.strictEqual(ok({}), true, 'older G.x without evolution still loads');
+    const bad = [
+      { ev: [0, 1] }, { ev: ev([x.EVO_MAX + 1]) }, { ev: ev([-1]) }, { ev: ev([0.5]) }, { ev: ev([0, 0, 1]) }, // third rod is not owned
+      { ev: 'x' }, { ev: null }, { mat: { junk: 1 } }, { mat: { scale: -1 } }, { mat: { scale: x.MAT_MAX + 1 } }, { mat: { scale: 1.5 } }, { mat: [] }, { mat: null },
+    ];
+    for (const b of bad) assert.strictEqual(ok(b), false, JSON.stringify(b));
+    assert.strictEqual(x.RODS.length, 6);
+    assert.ok(x.RODS.every((r) => r.ab && r.evo.length === x.EVO_MAX), 'every rod has an ability and a cost per tier');
+    assert.ok(x.CASH_MAX > 1 && x.CASH_MAX < 10, 'the shared income cap stays modest: ' + x.CASH_MAX);
+  });
+
+  await t('expansion: milestone places and exclusive catches (G.x.exc) are bounds-checked', async () => {
+    const u = require('../lib/util'), x = require('../lib/expansion');
+    const save = (gx, asc) => JSON.stringify({ S: u.SEASON, G: { asc: asc, x: gx }, faces: [] });
+    const ok = (gx, asc) => u.validateSave(save(gx, asc), { asc: asc });
+    assert.strictEqual(x.LOCATIONS.length, 8);
+    assert.ok(x.LOCATIONS.every((l) => l.exc.length === 3 && l.rb.length === 3 && l.vis.sky.length === 3 && l.vis.sea.length === 4), 'every place is fully described');
+    assert.ok(x.CASH_MAX < 10, 'income cap stays modest: ' + x.CASH_MAX);
+    const heaven = x.LOCATIONS.findIndex((l) => l.id === 'heaven'), h = x.LOCATIONS[heaven];
+    const gx = (extra) => Object.assign({ rod: 0, rods: [0], loc: 0, locs: [0, heaven], lv: h.lv, mxp: { [h.mast[0]]: h.mast[1] } }, extra);
+    assert.strictEqual(ok(gx({}), h.asc), true, 'all milestones met');
+    assert.strictEqual(ok(gx({ lv: h.lv - 1 }), h.asc), false, 'level too low');
+    assert.strictEqual(ok(gx({ mxp: {} }), h.asc), false, 'earlier place not mastered');
+    assert.strictEqual(ok(gx({}), h.asc - 1), false, 'not enough ascensions');
+    assert.strictEqual(ok(gx({ exc: { [heaven + '_0']: 5 } }), h.asc), true);
+    for (const e of [{ '9_9': 1 }, { [heaven + '_3']: 1 }, { [heaven + '_0']: 0 }, { [heaven + '_0']: 1.5 }, { '1_0': 1 }, []]) assert.strictEqual(ok(gx({ exc: e }), h.asc), false, JSON.stringify(e)); // '1_0' is a place the save does not own
+    assert.strictEqual(ok({ rod: 0, rods: [0], loc: 1, locs: [0, 1] }, 0), true, 'older saves with early places still load');
+  });
+
+  await t('expansion: museum (G.x.mu) and Book goals (G.x.bc) are bounds-checked, and Book titles need a claimed goal', async () => {
+    const u = require('../lib/util'), x = require('../lib/expansion');
+    const save = (gx) => JSON.stringify({ S: u.SEASON, G: { asc: 0, x: gx }, faces: [] });
+    const base = { rod: 0, rods: [0], loc: 0, locs: [0] };
+    const ok = (extra) => u.validateSave(save(Object.assign({}, base, extra)), { asc: 0 });
+    const th = (i) => x.MUSEUM_THEMES[i].lv;
+    assert.strictEqual(ok({}), true, 'older G.x without a museum still loads');
+    assert.strictEqual(ok({ mu: {} }), true);
+    assert.strictEqual(ok({ mu: { cs: [[3, 0, 1700000000000], [16, 4, 0]], th: 0, pin: [] } }), true);
+    assert.strictEqual(ok({ mu: { cs: new Array(x.MUSEUM_CASES).fill([5, 2, 5]) } }), true, 'a full museum is fine');
+    assert.strictEqual(ok({ lv: th(1), mu: { th: 1 } }), true, 'a hall is fine at its level');
+    assert.strictEqual(ok({ lv: th(1) - 1, mu: { th: 1 } }), false, 'a hall below its level');
+    assert.strictEqual(ok({ lv: x.LEVEL_MAX, mu: { th: x.MUSEUM_THEMES.length - 1 } }), true);
+    const id = x.XACH[0].id, id2 = x.XACH[1].id, id3 = x.XACH[2].id, id4 = x.XACH[3].id;
+    assert.strictEqual(ok({ xa: { [id]: 1 }, mu: { pin: [id] } }), true, 'an earned achievement can be pinned');
+    assert.strictEqual(ok({ xa: { [id]: 1, [id2]: 1, [id3]: 1 }, mu: { pin: [id, id2, id3] } }), true);
+    const bad = [
+      { mu: { cs: [[2, 0, 1]] } }, // below Epic
+      { mu: { cs: [[17, 0, 1]] } }, { mu: { cs: [[3, 5, 1]] } }, { mu: { cs: [[3, 0, -1]] } }, { mu: { cs: [[3, 0, 5e12]] } },
+      { mu: { cs: [[3.5, 0, 1]] } }, { mu: { cs: [[3, 0.5, 1]] } }, { mu: { cs: [[3, 0, 1.5]] } }, { mu: { cs: [[3, 0]] } }, { mu: { cs: [3] } },
+      { mu: { cs: new Array(x.MUSEUM_CASES + 1).fill([3, 0, 1]) } }, { mu: { cs: 'x' } }, { mu: { cs: {} } },
+      { mu: { th: -1 } }, { mu: { th: x.MUSEUM_THEMES.length } }, { mu: { th: 0.5 } }, { mu: { th: '0' } },
+      { mu: { pin: [id] } }, // not earned
+      { xa: { [id]: 1 }, mu: { pin: [id, id] } }, { xa: { [id]: 1, [id2]: 1, [id3]: 1, [id4]: 1 }, mu: { pin: [id, id2, id3, id4] } },
+      { mu: { pin: ['nope'] } }, { mu: { pin: 'x' } }, { mu: { extra: 1 } }, { mu: [] }, { mu: null }, { mu: 'x' },
+      { bc: { nope: 1 } }, { bc: { bk25: 2 } }, { bc: { bk25: 0 } }, { bc: [] }, { bc: null }, { bc: 'x' },
+      { ttl: 'bk25' }, { ttl: 'bk100', bc: { bk25: 1 } }, // a Book title needs its own goal
+    ];
+    for (const b of bad) assert.strictEqual(ok(b), false, JSON.stringify(b));
+    assert.strictEqual(ok({ bc: { bk25: 1, bk50: 1 }, ttl: 'bk50' }), true, 'a claimed Book title can be worn');
+    assert.strictEqual(ok({ bc: { bk25: 1 }, ttl: '' }), true);
+    assert.strictEqual(x.MUSEUM_THEMES.length, 5);
+    assert.ok(x.MUSEUM_THEMES[0].lv <= 1, 'the first hall is free');
+    for (let i = 1; i < x.MUSEUM_THEMES.length; i++) assert.ok(x.MUSEUM_THEMES[i].lv > x.MUSEUM_THEMES[i - 1].lv, 'halls unlock in level order');
+    assert.ok(x.MUSEUM_THEMES.every((m) => m.id && m.n && m.bg.length === 2 && m.acc), 'every hall is fully described');
+    assert.ok(x.MUSEUM_THEMES[x.MUSEUM_THEMES.length - 1].lv <= x.LEVEL_MAX, 'every hall can be unlocked');
+    assert.strictEqual(x.BOOK_GOALS.length, 4);
+    assert.strictEqual(x.BOOK_TOTAL, 85, 'the Book has 17 rarities x 5 mutations');
+    for (let i = 1; i < x.BOOK_GOALS.length; i++) assert.ok(x.BOOK_GOALS[i].pct > x.BOOK_GOALS[i - 1].pct, 'goals rise in percentage');
+    assert.strictEqual(x.BOOK_GOALS[x.BOOK_GOALS.length - 1].pct, 100);
+    assert.ok(x.BOOK_GOALS.every((g) => g.id && g.n && g.ttl && Object.keys(g.mat).every((k) => x.MAT_IDS.includes(k) && g.mat[k] > 0 && g.mat[k] <= x.MAT_MAX)), 'every goal pays valid materials');
+    assert.deepStrictEqual(x.BOOK_IDS, x.BOOK_GOALS.map((g) => g.id));
+    assert.ok(x.BOOK_IDS.every((b) => x.TITLE_IDS.includes(b)), 'every Book title is a known title');
+    assert.strictEqual(new Set(x.TITLE_IDS).size, x.TITLE_IDS.length, 'title ids are unique');
+    assert.ok(x.CASH_MAX > 1 && x.CASH_MAX < 10, 'the shared income cap stays modest: ' + x.CASH_MAX);
+  });
+
+  await t('expansion: the equipped title reaches the profile and leaderboard as its display name, and is dropped when unequipped', async () => {
+    const T = await signupAs('ttl_1', 'ttl-pw-1', 103);
+    const gx = (extra) => ({ x: Object.assign({ rod: 0, rods: [0], loc: 0, locs: [0] }, extra) });
+    const sub = async (extra) => { await age('ttl_1'); unlock('ttl_1'); return call('POST', '/api/submit', mk({}, { g: gx(extra) }), T); };
+    const prof = async () => (await call('GET', '/api/leaderboard?u=ttl_1')).j.profile;
+    let r = await sub({ ttl: 'lv10' });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual((await prof()).ttl, 'Angler', 'a level title shows its display name');
+    const rows = (await call('GET', '/api/leaderboard?view=life&n=50')).j.rows;
+    assert.strictEqual(rows.find((q) => q.name === 'ttl_1').ttl, 'Angler', 'the leaderboard row carries it too');
+    r = await sub({ bc: { bk25: 1 }, ttl: 'bk25' });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.strictEqual((await prof()).ttl, 'Curious', 'a claimed Book title shows its name');
+    r = await sub({ ttl: 'god' });
+    assert.strictEqual(r.code, 422, 'an unknown title id is rejected, so it can never reach a profile');
+    assert.strictEqual((await prof()).ttl, 'Curious', 'a rejected sync leaves the title alone');
+    r = await sub({ ttl: '' });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.j));
+    assert.ok(!('ttl' in (await prof())), 'no title equipped means no field');
+    const rows2 = (await call('GET', '/api/leaderboard?view=life&n=50')).j.rows;
+    assert.ok(!('ttl' in rows2.find((q) => q.name === 'ttl_1')), 'and none on the leaderboard row');
+  });
+
+  await t('expansion: tournaments (/api/x) are owner-only behind the preview flag, scores are capped and rate limited, rewards pay once, and G.x.tr is bounds-checked', async () => {
+    const x = require('../lib/expansion'), u = require('../lib/util'), st = getStore();
+    const prevCodes = process.env.ADMIN_CODES, code = mkCode();
+    process.env.ADMIN_CODES = (prevCodes ? prevCodes + ',' : '') + 'owner:' + hashCode(code); // stays set until the end of this test: adminOf checks the code table on every request
+    const XO = await signupAs('xown_1', 'xown-pw-1', 101), XP = await signupAs('xplay_1', 'xplay-pw-1', 102);
+    assert.strictEqual((await adm({ action: 'redeem', code }, XO, 61)).code, 200);
+    const restoreCodes = () => { if (prevCodes === undefined) delete process.env.ADMIN_CODES; else process.env.ADMIN_CODES = prevCodes; };
+    const get = (tok) => call('GET', '/api/x?a=tourney', undefined, tok);
+    const post = (b, tok) => call('POST', '/api/x', b, tok);
+    const clear = () => Promise.all(['xscore:', 'xclaim:', 'xget:'].map((p) => st.del('rl:' + p + 'xown_1')));
+    const cur = x.tourneyWindow(Date.now());
+
+    await st.del('cfg:expansion');
+    assert.strictEqual((await get(XO)).code, 404, 'invisible while the preview is off');
+    assert.strictEqual((await post({ a: 'score', pts: 5 }, XO)).code, 404);
+    await st.set('cfg:expansion', '1');
+    try {
+      assert.strictEqual((await get()).code, 401, 'sign-in needed');
+      assert.strictEqual((await get(XP)).code, 404, 'a normal player never sees it');
+      assert.strictEqual((await post({ a: 'score', pts: 5 }, XP)).code, 404);
+      assert.strictEqual((await post({ a: 'claim', w: cur - 1 }, XP)).code, 404);
+
+      await clear();
+      const g = await get(XO);
+      assert.strictEqual(g.code, 200, JSON.stringify(g.j));
+      assert.strictEqual(g.j.w, cur);
+      assert.strictEqual(g.j.cat, x.tourneyCat(cur).id);
+      assert.strictEqual(g.j.end - g.j.start, x.TOURNEY_MS);
+      assert.ok(Array.isArray(g.j.rows) && Array.isArray(g.j.claim));
+      assert.strictEqual((await call('GET', '/api/x?a=nope', undefined, XO)).code, 404);
+
+      for (const pts of [0, -1, 1.5, '5', null, x.TOURNEY_PTS_MAX + 1]) { await clear(); assert.strictEqual((await post({ a: 'score', pts }, XO)).code, 422, 'pts ' + pts); }
+      await clear();
+      let r = await post({ a: 'score', pts: 40 }, XO);
+      assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.strictEqual(r.j.pts, 40); assert.strictEqual(r.j.rank, 1);
+      assert.strictEqual((await post({ a: 'score', pts: 10 }, XO)).code, 429, 'syncing too fast');
+      await clear();
+      r = await post({ a: 'score', pts: 10 }, XO);
+      assert.strictEqual(r.j.pts, 50, 'points add up');
+      await st.set('tns:' + cur + ':xown_1', String(x.TOURNEY_WIN_MAX - 3));
+      await clear();
+      r = await post({ a: 'score', pts: x.TOURNEY_PTS_MAX }, XO);
+      assert.strictEqual(r.j.pts, x.TOURNEY_WIN_MAX, 'a window total is capped');
+      await clear();
+      const g2 = await get(XO);
+      assert.strictEqual(g2.j.me.pts, x.TOURNEY_WIN_MAX); assert.strictEqual(g2.j.me.rank, 1);
+      assert.strictEqual(g2.j.rows[0].name, 'xown_1');
+      await clear();
+      assert.strictEqual((await post({ a: 'bogus' }, XO)).code, 404);
+      await clear();
+      assert.strictEqual((await post('not json{', XO)).code, 422);
+
+      for (const w of [cur, cur + 1, cur - x.TOURNEY_CLAIM_WINDOWS - 1, 1.5, '3', null]) { await clear(); assert.strictEqual((await post({ a: 'claim', w }, XO)).code, 422, 'window ' + w); }
+      await clear();
+      assert.strictEqual((await post({ a: 'claim', w: cur - 1 }, XO)).code, 422, 'no score in that window');
+      const w1 = cur - 1;
+      await st.zadd('tn:' + w1, 900, 'xown_1'); await st.set('tns:' + w1 + ':xown_1', '900');
+      await st.zadd('tn:' + w1, 100, 'someone_else');
+      await clear();
+      const g3 = await get(XO);
+      const c = g3.j.claim.find((e) => e.w === w1);
+      assert.ok(c, 'the finished window is offered'); assert.strictEqual(c.rank, 1); assert.strictEqual(c.reward, x.tourneyReward(1).n);
+      await clear();
+      r = await post({ a: 'claim', w: w1 }, XO);
+      assert.strictEqual(r.code, 200, JSON.stringify(r.j)); assert.strictEqual(r.j.rank, 1); assert.deepStrictEqual(r.j.mat, x.tourneyReward(1).mat);
+      await clear();
+      assert.strictEqual((await post({ a: 'claim', w: w1 }, XO)).code, 409, 'never pays twice');
+      await clear();
+      assert.ok(!(await get(XO)).j.claim.some((e) => e.w === w1), 'a claimed window is no longer offered');
+
+      // Crew competition board (written by /api/submit while the flag is on, read here)
+      await clear();
+      assert.strictEqual((await call('GET', '/api/x?a=crew', undefined, XP)).code, 404, 'crew board is owner-only too');
+      await st.del('tc:' + cur);
+      let cr = await call('GET', '/api/x?a=crew', undefined, XO);
+      assert.strictEqual(cr.code, 200, JSON.stringify(cr.j));
+      assert.strictEqual(cr.j.w, cur); assert.deepStrictEqual(cr.j.rows, []); assert.strictEqual(cr.j.me.rank, 0);
+      await st.zadd('tc:' + cur, 500, 'xown_1'); await st.zadd('tc:' + cur, 900, 'someone_else');
+      await clear();
+      cr = await call('GET', '/api/x?a=crew', undefined, XO);
+      assert.strictEqual(cr.j.rows[0].name, 'someone_else'); assert.strictEqual(cr.j.me.rank, 2); assert.strictEqual(cr.j.total, 2);
+      await st.del('tc:' + cur);
+    } finally {
+      await st.del('cfg:expansion');
+      restoreCodes();
+    }
+
+    const save = (gx) => JSON.stringify({ S: u.SEASON, G: { asc: 0, x: gx }, faces: [] });
+    const base = { rod: 0, rods: [0], loc: 0, locs: [0] };
+    const ok = (tr) => u.validateSave(save(Object.assign({}, base, { tr })), { asc: 0 });
+    assert.strictEqual(ok({}), true); assert.strictEqual(ok({ [cur - 1]: 1, [cur - 2]: 1 }), true);
+    for (const bad of [{ [cur + 5]: 1 }, { [cur - 1]: 2 }, { [cur - 1]: 0 }, { abc: 1 }, { '-1': 1 }, { '1.5': 1 }, [], null, 'x']) assert.strictEqual(ok(bad), false, JSON.stringify(bad));
+    const big = {}; for (let i = 0; i < 65; i++) big[cur - 1 - i] = 1;
+    assert.strictEqual(ok(big), false, 'too many claimed windows');
+
+    assert.strictEqual(x.TOURNEY_CATS.length, 3);
+    assert.ok(x.TOURNEY_PTS_MAX < x.TOURNEY_WIN_MAX);
+    assert.ok(x.TOURNEY_CLAIM_WINDOWS * x.TOURNEY_MS / 1000 <= x.TOURNEY_KEEP_S + x.TOURNEY_MS / 1000, 'boards live long enough to claim');
+    for (let i = 1; i < x.TOURNEY_REWARDS.length; i++) assert.ok(x.TOURNEY_REWARDS[i].max > x.TOURNEY_REWARDS[i - 1].max, 'reward bands widen');
+    assert.ok(x.TOURNEY_REWARDS.every((q) => Object.keys(q.mat).every((k) => x.MAT_IDS.includes(k) && q.mat[k] > 0 && q.mat[k] <= x.MAT_MAX)), 'rewards are valid materials');
+    assert.strictEqual(x.tourneyReward(1e6).n, 'Finisher');
+  });
+
   await t('expansion: the tables in public/index.html match lib/expansion.js (run node scripts/sync-expansion.js to fix)', async () => {
     const { spawnSync } = require('child_process');
     const r = spawnSync(process.execPath, [require('path').join(__dirname, '..', 'scripts', 'sync-expansion.js'), '--check']);

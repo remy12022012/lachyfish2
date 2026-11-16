@@ -164,6 +164,7 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 .vt{flex:1;font:inherit;font-size:11px;font-weight:900;padding:5px 2px;border-radius:9px;border:2px solid #1a0a4a;background:#3a1a8a;color:#fff;cursor:pointer}
 .vt:hover{background:#5a2bb8}
 .vt.on{background:#ffe36b;color:#1a0a4a}
+.xttl{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.6px;vertical-align:middle;color:#3a2a00;background:linear-gradient(#fff2b3,#ffd23f);border:1.5px solid #1a0a4a;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .devtag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.8px;vertical-align:middle;color:#0a2a4a;background:linear-gradient(#bfe6ff,#4db4ff);border:1.5px solid #1a0a4a;font-family:var(--fd)}.devtag.own{color:#4a2c00;background:linear-gradient(#ffe9a0,#ffb52e)}.glow{color:#fff!important;text-shadow:0 0 5px #7dd3ff,0 0 11px #4db4ff,0 0 20px #4db4ff;animation:devglow 1.8s ease-in-out infinite alternate}.glow.own{text-shadow:0 0 5px #ffe9a0,0 0 11px #ffb52e,0 0 20px #ffb52e;animation-name:devglowo}.devtag{box-shadow:0 0 8px #4db4ff}.devtag.own{box-shadow:0 0 8px #ffb52e}@keyframes devglow{from{text-shadow:0 0 3px #7dd3ff,0 0 7px #4db4ff}to{text-shadow:0 0 7px #bfe6ff,0 0 16px #4db4ff,0 0 28px #4db4ff}}@keyframes devglowo{from{text-shadow:0 0 3px #ffe9a0,0 0 7px #ffb52e}to{text-shadow:0 0 7px #fff3c4,0 0 16px #ffb52e,0 0 28px #ffb52e}}@media (prefers-reduced-motion:reduce){.glow{animation:none}}
 .lbname{font:inherit;font-weight:900;font-size:13px;background:none;border:0;padding:0;margin:0;color:#fff;text-align:left;cursor:pointer;text-decoration:underline dotted}
 .lbname:hover{color:#ffe36b}
@@ -298,6 +299,26 @@ table.bk .fi{width:23px;height:31px;margin:0 auto}
 .perf2 #drawer{animation:none}
 .card.bsel{outline:3px solid #ffe36b;outline-offset:-3px}
 @media (max-height:480px){#dhead{padding:3px 8px}#dtitle{font-size:15px}}
+/* The drawer overlays #stage, so keep the tutorial card and the expansion dock clear of it. */
+:root{--dw:min(clamp(280px,34vw,460px),calc(100vw - 108px))}
+#app:has(#xdock[style*='flex']) #tut{bottom:46px}
+@media (max-width:699px){
+#app #xdock{max-width:calc(100% - 12px);left:6px;right:6px;justify-content:center}
+#app:has(#xdock[style*='flex']) #tut{bottom:48px}
+/* Drawer open on a narrow screen: it covers most of the width, so stack the dock in the strip beside it and hide the tutorial card. */
+#app:has(#drawer.open) #tut{display:none!important}
+#app:has(#drawer.open) #xdock{left:6px;right:auto;width:auto;max-width:calc(100% - var(--dw) - 10px);flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-end;gap:4px}
+#app:has(#drawer.open) #xdock .btn{padding:3px 4px;white-space:nowrap;overflow:hidden;text-overflow:clip}
+}
+@media (max-width:699px) and (max-height:480px){
+#app #xdock .btn{font-size:11px;padding:3px 6px}
+#app:has(#xdock[style*='flex']) #tut{bottom:40px}
+}
+@media (min-width:700px){
+#app:has(#drawer.open) #tut{left:6px;right:calc(var(--dw) + 4px);width:auto;max-width:500px;transform:none}
+#app:has(#drawer.open) #xdock{right:calc(var(--dw) + 4px);max-width:calc(100% - var(--dw) - 10px)}
+#app:has(#drawer.open) #hud{right:calc(var(--dw) + 4px)}
+}
 /* ---------- RNG skin v2: glossy bevels, rarity glow, animated loader ---------- */
 :root{--gloss:inset 0 3px 0 rgba(255,255,255,.6),inset 0 -4px 0 rgba(0,0,0,.22)}
 #load{background:radial-gradient(ellipse at 50% 30%,#4a22c8 0,#240c78 45%,#0c0330 100%)!important;overflow:hidden}
@@ -531,16 +552,25 @@ function qProg(k,v){
   }
 }
 function qCatch(r,m){qProg('catch',1);if(r>=2)qProg('rare',1);if(r>=3)qProg('epic',1);if(m>0)qProg('mut',1);}
-function openChest(){
-  var c=chest;if(!c)return;
-  var r=Math.random(),cx=c.x,cy=c.y,k;
+// ti: chest tier index (owner preview only; see XT.tiers). Without it the chest pays exactly as before.
+function chestReward(cx,cy,ti){
+  var r=Math.random(),k,t=(ti>0&&XT.tiers[ti])?XT.tiers[ti]:null,m=t?t.m:1,tc=t?t.col:'#ffe36b',tn=t?t.n+' ':'',secs=60*Math.min(10,Math.ceil(Math.sqrt(m))),gm=1+(t?ti:0),nj=5+(t?ti*3:0);
   G.chests++;qProg('pop',1);
-  if(r<0.45){var v=Math.max(150,curInc*120);earn(v);floatText(cx,cy-18,'CHEST +$'+fmt(v),'#ffe36b',16);}
-  else if(r<0.7){k=['luck','mut','cash'][Math.floor(Math.random()*3)];G.bf[k]+=60;floatText(cx,cy-18,BAITS[k].n+' 60s!','#e8d0ff',15);}
-  else if(r<0.85){G.gems+=1;floatText(cx,cy-18,'+1 GEM','#ff9be0',17);}
-  else{banner('JACKPOT!','5 free catches','#ffe36b');for(var i=0;i<5;i++)catchFace(cx+rnd(-90,90),y0+rnd(30,120),'chest');}
+  if(t&&ti>=3)banner(t.n.toUpperCase()+' CHEST!','Opening...',tc);
+  if(r<0.45){var v=Math.max(150,curInc*120)*m;earn(v);floatText(cx,cy-18,tn+'CHEST +$'+fmt(v),tc,16);}
+  else if(r<0.7){k=['luck','mut','cash'][Math.floor(Math.random()*3)];G.bf[k]+=secs;floatText(cx,cy-18,tn+BAITS[k].n+' '+secs+'s!','#e8d0ff',15);}
+  else if(r<0.85){G.gems+=gm;floatText(cx,cy-18,tn+'+'+gm+(gm>1?' GEMS':' GEM'),'#ff9be0',17);}
+  else{banner('JACKPOT!',nj+' free catches','#ffe36b');for(var i=0;i<nj;i++)catchFace(cx+rnd(-90,90),y0+rnd(30,120),'chest');}
+  if(t&&ti>=4&&xOn&&G.x)xGrant('x_myth');
   burst(cx,cy,4,0);spark(cx,cy,'#ffd23f',18,3,0,0.06);
   tone(523,0.1,'square',0.05);tone(784,0.12,'square',0.05,0.08);tone(1047,0.2,'square',0.05,0.16);
+}
+// Chest tiers (owner preview): a stored chest rolls its tier by XT.tiers weights; the stash holds up to XT.chestMax chests in total, legacy untiered ones (G.x.chests) included.
+function xChestTotal(){var x=xInit(),s=x.chests|0,i;for(i=0;i<5;i++)s+=x.cht[i]|0;return s;}
+function xRollTier(){var tot=0,r,i;for(i=0;i<XT.tiers.length;i++)tot+=XT.tiers[i].w;r=Math.random()*tot;for(i=0;i<XT.tiers.length;i++){r-=XT.tiers[i].w;if(r<0)return i;}return 0;}
+function openChest(){
+  var c=chest;if(!c)return;
+  chestReward(c.x,c.y,xOn&&G.x?xRollTier():0);
   chest=null;chestT=Math.floor(rnd(4500,8000));dirty=true;
 }
 function newG(){return {coins:0,run:0,food:0,ucv:1,gems:0,gsp:0,cos:{own:{},dock:0,sky:0,sea:0},asc:0,up:{auto:0,quick:0,luck:0,mut:0,val:0,multi:0,crew:0,cap:0,farm:0,soil:0,feed:0},book:{},caught:0,nid:1,ts:0,mute:0,perf:0,nf:0,ft:0,nt:0,ti:0,trd:[],bf:{luck:0,mut:0,cash:0},as:-1,q:[],qn:0,ach:{},chests:0,qdone:0,dl:0,ds:0,buy:1,pt:0,lp:0,tut:0};}
@@ -563,11 +593,21 @@ var loading=true,welcome=0,nbAnim=null;
 var view='fish',baseScroll=0,baseMax=0,bdrag=null,selId=0,selHtml='',recent=[],sinkers=[],ultraAnim=null,bgBase=null,bgFarm=null,cells=[];
 
 // ---------- EXPANSION (owner preview; lib/expansion.js is the source of the tables, scripts/sync-expansion.js copies them here) ----------
-/*X:TABLES*/var XT={"slot":1800000,"chance":0.6,"events":[{"id":"bloodmoon","n":"Blood Moon","dur":480000,"luck":2,"cash":1,"mut":1.5,"chest":1,"col":"#ff3b3b","d":"Rarer catches under a red moon"},{"id":"goldentide","n":"Golden Tide","dur":480000,"luck":1,"cash":2,"mut":1,"chest":1,"col":"#ffd23f","d":"Everything sells for double"},{"id":"voidstorm","n":"Void Storm","dur":360000,"luck":1.5,"cash":1,"mut":2,"chest":1,"col":"#9b5cff","d":"Void-only catches rise from the deep"},{"id":"luckyhour","n":"Lucky Hour","dur":600000,"luck":2.5,"cash":1,"mut":1,"chest":1,"col":"#5cf27a","d":"A big luck bonus for everyone"},{"id":"treasurerain","n":"Treasure Rain","dur":420000,"luck":1,"cash":1,"mut":1,"chest":3,"col":"#ffb347","d":"Treasure chests pour from the sky"}],"rods":[{"id":"twig","n":"Twig Rod","cost":0,"luck":1,"cash":1},{"id":"bamboo","n":"Bamboo Rod","cost":50000,"luck":1.1,"cash":1.05},{"id":"carbon","n":"Carbon Rod","cost":5000000,"luck":1.25,"cash":1.1},{"id":"coral","n":"Coral Rod","cost":500000000,"luck":1.45,"cash":1.2},{"id":"abyssal","n":"Abyssal Rod","cost":50000000000,"luck":1.7,"cash":1.3},{"id":"void","n":"Void Rod","cost":5000000000000,"luck":2,"cash":1.5}],"locs":[{"id":"pond","n":"Quiet Pond","asc":0,"cost":0,"luck":1,"cash":1},{"id":"reef","n":"Coral Reef","asc":0,"cost":2000000,"luck":1.1,"cash":1.05},{"id":"cave","n":"Glow Cave","asc":1,"cost":5000000000,"luck":1.2,"cash":1.1},{"id":"trench","n":"Abyss Trench","asc":3,"cost":5000000000000,"luck":1.35,"cash":1.15},{"id":"rift","n":"Void Rift","asc":6,"cost":5000000000000000,"luck":1.5,"cash":1.25}],"mastery":{"max":20,"cash":0.01,"xp":10},"chestMax":50};/*X:END*/
+/*X:TABLES*/var XT={"slot":1800000,"chance":0.6,"events":[{"id":"bloodmoon","n":"Blood Moon","dur":480000,"luck":2,"cash":1,"mut":1.5,"chest":1,"col":"#ff3b3b","d":"Rarer catches under a red moon"},{"id":"goldentide","n":"Golden Tide","dur":480000,"luck":1,"cash":2,"mut":1,"chest":1,"col":"#ffd23f","d":"Everything sells for double"},{"id":"voidstorm","n":"Void Storm","dur":360000,"luck":1.5,"cash":1,"mut":2,"chest":1,"col":"#9b5cff","d":"Void-only catches rise from the deep"},{"id":"luckyhour","n":"Lucky Hour","dur":600000,"luck":2.5,"cash":1,"mut":1,"chest":1,"col":"#5cf27a","d":"A big luck bonus for everyone"},{"id":"treasurerain","n":"Treasure Rain","dur":420000,"luck":1,"cash":1,"mut":1,"chest":3,"col":"#ffb347","d":"Treasure chests pour from the sky"}],"rods":[{"id":"wooden","n":"Wooden Rod","cost":0,"luck":1,"cash":1,"ab":{"k":"chest","v":0.1,"n":"Treasure Sense","d":"+10% chest chance per evolution"},"evo":[[20,0,0],[40,0,0],[60,0,0]]},{"id":"golden","n":"Golden Rod","cost":50000,"luck":1.1,"cash":1.05,"ab":{"k":"mut","v":0.08,"n":"Gilded Touch","d":"+8% mutation chance per evolution"},"evo":[[40,4,0],[80,8,0],[120,12,0]]},{"id":"crystal","n":"Crystal Rod","cost":5000000,"luck":1.25,"cash":1.1,"ab":{"k":"chest","v":0.15,"n":"Clear Sight","d":"+15% chest chance per evolution"},"evo":[[60,8,0],[120,16,0],[180,24,0]]},{"id":"void","n":"Void Rod","cost":500000000,"luck":1.45,"cash":1.2,"ab":{"k":"mut","v":0.15,"n":"Void Pull","d":"+15% mutation chance per evolution"},"evo":[[80,12,2],[160,24,4],[240,36,6]]},{"id":"celestial","n":"Celestial Rod","cost":50000000000,"luck":1.7,"cash":1.3,"ab":{"k":"chest","v":0.2,"n":"Starfall","d":"+20% chest chance per evolution"},"evo":[[100,16,4],[200,32,8],[300,48,12]]},{"id":"prismatic","n":"Prismatic Rod","cost":5000000000000,"luck":2,"cash":1.5,"ab":{"k":"mut","v":0.25,"n":"Spectrum","d":"+25% mutation chance per evolution"},"evo":[[120,20,6],[240,40,12],[360,60,18]]}],"locs":[{"id":"pond","n":"Quiet Pond","asc":0,"cost":0,"luck":1,"cash":1,"rb":[1,1,1],"lv":1,"mast":null,"exc":[{"id":"minnow","n":"Silver Minnow","p":6,"v":20},{"id":"lily","n":"Lily Koi","p":3,"v":40},{"id":"moonpond","n":"Moon Carp","p":1,"v":120}],"vis":{"sky":["#8fd0ff","#bfe6ff","#e8f6ff"],"sea":["#3aa0e8","#2a7fd0","#1f5fb0","#174a90"],"amb":"none"}},{"id":"cove","n":"Coral Cove","asc":0,"cost":2000000,"luck":1.1,"cash":1.05,"rb":[0.9,1.15,1.2],"lv":1,"mast":null,"exc":[{"id":"clown","n":"Cove Clown","p":6,"v":25},{"id":"anemone","n":"Anemone Imp","p":3,"v":55},{"id":"pearlfin","n":"Pearlfin","p":1,"v":150}],"vis":{"sky":["#ffb38a","#ffd9b0","#fff0dc"],"sea":["#2fd6c6","#1aa9b8","#127c9a","#0d5a80"],"amb":"bubbles"}},{"id":"frozen","n":"Frozen Lake","asc":1,"cost":5000000000,"luck":1.2,"cash":1.1,"rb":[0.85,1.2,1.3],"lv":1,"mast":null,"exc":[{"id":"icefin","n":"Icefin","p":6,"v":30},{"id":"rime","n":"Rimeback","p":3,"v":70},{"id":"aurorafish","n":"Aurora Smelt","p":1,"v":200}],"vis":{"sky":["#9fc4e8","#cfe4f5","#f2f8ff"],"sea":["#6fc4ee","#4aa0d8","#3478b8","#265a98"],"amb":"snow"}},{"id":"volcanic","n":"Volcanic Depths","asc":3,"cost":5000000000000,"luck":1.35,"cash":1.15,"rb":[0.8,1.25,1.4],"lv":1,"mast":null,"exc":[{"id":"ember","n":"Ember Eel","p":6,"v":40},{"id":"magma","n":"Magma Maw","p":3,"v":90},{"id":"phoenixfin","n":"Phoenixfin","p":1,"v":260}],"vis":{"sky":["#3a1410","#6a2214","#a0401c"],"sea":["#6a1a10","#4e1410","#34100e","#200a0a"],"amb":"embers"}},{"id":"abyssal","n":"Abyssal Ocean","asc":6,"cost":5000000000000000,"luck":1.5,"cash":1.25,"rb":[0.7,1.3,1.6],"lv":1,"mast":null,"exc":[{"id":"lantern","n":"Lantern Angler","p":6,"v":60},{"id":"ghostjelly","n":"Ghost Jelly","p":3,"v":130},{"id":"leviathan","n":"Leviathan Spawn","p":1,"v":400}],"vis":{"sky":["#0a1030","#10204a","#183060"],"sea":["#0e2a5a","#0a1e44","#061230","#030a1c"],"amb":"motes"}},{"id":"heaven","n":"Heaven's Gate","asc":9,"cost":5000000000000000000,"luck":1.65,"cash":1.3,"rb":[0.6,1.35,1.8],"lv":20,"mast":[4,10],"exc":[{"id":"seraph","n":"Seraphfin","p":6,"v":90},{"id":"halo","n":"Halo Ray","p":3,"v":200},{"id":"gatekeeper","n":"Gatekeeper Koi","p":1,"v":600}],"vis":{"sky":["#fff2c0","#ffe39a","#fff8e0"],"sea":["#f0b840","#d9922c","#b06a22","#7c4418"],"amb":"halo"}},{"id":"glitch","n":"Glitched Dimension","asc":13,"cost":5e+21,"luck":1.8,"cash":1.35,"rb":[0.5,1.4,2],"lv":30,"mast":[5,10],"exc":[{"id":"pixel","n":"Pixel Perch","p":6,"v":140},{"id":"null","n":"Null Pointer","p":3,"v":320},{"id":"segfault","n":"Segfault Shark","p":1,"v":900}],"vis":{"sky":["#0a0a14","#14202a","#0a2a1c"],"sea":["#0a3a2a","#082a3a","#1a0a3a","#0a0a1a"],"amb":"glitch"}},{"id":"voidrealm","n":"Void Realm","asc":17,"cost":5e+24,"luck":2,"cash":1.4,"rb":[0.4,1.5,2.4],"lv":40,"mast":[6,10],"exc":[{"id":"umbra","n":"Umbra Ray","p":6,"v":220},{"id":"nothing","n":"The Nothing","p":3,"v":500},{"id":"oblivion","n":"Oblivion Whale","p":1,"v":1500}],"vis":{"sky":["#05000f","#12002a","#220048"],"sea":["#1a0036","#12002a","#0a001a","#040008"],"amb":"void"}}],"mastery":{"max":20,"cash":0.01,"xp":10},"chestMax":50,"level":{"max":50,"cash":0.005,"luck":0.004},"titles":[{"id":"lv10","lv":10,"n":"Angler"},{"id":"lv20","lv":20,"n":"Seasoned"},{"id":"lv30","lv":30,"n":"Veteran"},{"id":"lv40","lv":40,"n":"Master Angler"},{"id":"lv50","lv":50,"n":"Grandmaster"}],"ach":[{"id":"x_leg","i":"&#11088;","n":"Legend Found","d":"Catch your first Legendary","ttl":"Legend Seeker"},{"id":"x_1k","i":"&#127907;","n":"Thousand Casts","d":"Catch 1,000 fish","ttl":"Dedicated"},{"id":"x_mut","i":"&#129516;","n":"Mutant Collector","d":"Discover every mutation","ttl":"Mutagen"},{"id":"x_loc","i":"&#128506;","n":"Explorer","d":"Unlock every fishing location","ttl":"Explorer"},{"id":"x_1m","i":"&#127920;","n":"One in a Million","d":"Catch an Abyssal or rarer fish","ttl":"Impossible"},{"id":"x_lv10","i":"&#128201;","n":"Getting Serious","d":"Reach fishing level 10"},{"id":"x_lv25","i":"&#128200;","n":"Seasoned Angler","d":"Reach fishing level 25"},{"id":"x_lv50","i":"&#128081;","n":"Grandmaster","d":"Reach fishing level 50","ttl":"Max Level"},{"id":"x_chest","i":"&#127873;","n":"Treasure Trove","d":"Open 25 chests","ttl":"Treasure Hunter"},{"id":"x_myth","i":"&#128142;","n":"Mythical Haul","d":"Open a Mythical chest","ttl":"Fortune Favoured"},{"id":"x_rod","i":"&#127907;","n":"Rod Collector","d":"Own every rod"},{"id":"x_evt","i":"&#127769;","n":"Event Chaser","d":"Catch 25 fish during world events","ttl":"Event Chaser"},{"id":"x_moon","i":"&#128302;","n":"Moonlit Miracle","d":"Catch a Legendary or better under a Blood Moon","sec":1,"ttl":"Moonlit"},{"id":"x_void","i":"&#128376;","n":"Void Touched","d":"Catch a Void mutation during a Void Storm","sec":1,"ttl":"Void Touched"}],"tiers":[{"id":"common","n":"Common","col":"#cfd8e3","w":70,"m":1},{"id":"rare","n":"Rare","col":"#4aa8ff","w":20,"m":3},{"id":"epic","n":"Epic","col":"#c66bff","w":7,"m":10},{"id":"legendary","n":"Legendary","col":"#ffc61a","w":2.5,"m":40},{"id":"mythical","n":"Mythical","col":"#ff4f6d","w":0.5,"m":200}],"evo":{"max":3,"cash":0.1,"luck":0.05,"matMax":9999},"mats":[{"id":"scale","n":"Fish Scale","i":"&#128031;","col":"#9fd8ff"},{"id":"pearl","n":"Pearl","i":"&#9898;","col":"#ffe6f7"},{"id":"shard","n":"Void Shard","i":"&#128142;","col":"#a24bff"}],"excChance":0.03,"museum":{"cases":12,"minRar":3,"pins":3,"themes":[{"id":"classic","n":"Classic Hall","lv":1,"bg":["#2a3a52","#1a2638"],"acc":"#ffe36b"},{"id":"ocean","n":"Deep Ocean","lv":10,"bg":["#0e3a63","#06203a"],"acc":"#7dd3ff"},{"id":"gold","n":"Gilded Hall","lv":20,"bg":["#5a4216","#2e210a"],"acc":"#ffd23f"},{"id":"void","n":"Void Gallery","lv":35,"bg":["#2a1050","#0e0420"],"acc":"#b97cff"},{"id":"cosmic","n":"Cosmic Vault","lv":50,"bg":["#10205a","#04081e"],"acc":"#ff7de9"}]},"book":{"total":85,"goals":[{"id":"bk25","pct":25,"n":"Curious Collector","ttl":"Curious","mat":{"scale":60}},{"id":"bk50","pct":50,"n":"Dedicated Curator","ttl":"Curator","mat":{"scale":120,"pearl":20}},{"id":"bk75","pct":75,"n":"Master Archivist","ttl":"Archivist","mat":{"pearl":40,"shard":6}},{"id":"bk100","pct":100,"n":"Completionist","ttl":"Completionist","mat":{"pearl":80,"shard":20}}]},"tn":{"ms":21600000,"keep":259200,"claim":8,"ptsMax":5000,"winMax":200000,"cats":[{"id":"value","n":"Catch Value","i":"💰","d":"Points for the value of every catch"},{"id":"rare","n":"Rare Catches","i":"💎","d":"Epic and better catches score big"},{"id":"mut","n":"Mutation Hunt","i":"🧬","d":"Only mutated catches score"}],"rewards":[{"max":1,"n":"Champion","mat":{"scale":40,"pearl":15,"shard":4}},{"max":3,"n":"Podium","mat":{"scale":30,"pearl":10,"shard":2}},{"max":10,"n":"Top 10","mat":{"scale":20,"pearl":5}},{"max":1000000000,"n":"Finisher","mat":{"scale":8}}]}};/*X:END*/
 var xOn=false,xSkew=0;
 function xNow(){return Date.now()+xSkew;}
-function xApply(j){if(!j)return;if(typeof j.now==='number'&&isFinite(j.now))xSkew=j.now-Date.now();xOn=!!j.expansion;if(xOn)xInit();xDockSync();dirty=true;}
-function xInit(){if(!G.x)G.x={rod:0,rods:[0],loc:0,locs:[0],mxp:{},mxx:{},chests:0};if(!G.x.mxx)G.x.mxx={};return G.x;}
+function xApply(j){if(!j)return;if(typeof j.now==='number'&&isFinite(j.now))xSkew=j.now-Date.now();xOn=!!j.expansion;if(xOn)xInit();xDockSync();xBgRebuild();dirty=true;}
+// XP needed to go from level l to l+1. Must match levelNeed in lib/expansion.js (the server bounds G.x.xp with it).
+function xLvNeed(l){return Math.round(40*Math.pow(l,1.6));}
+function xInit(){var x=G.x;if(!x)x=G.x={rod:0,rods:[0],loc:0,locs:[0],mxp:{},mxx:{},chests:0};if(!x.mxx)x.mxx={};
+  if(!(x.lv>=1)){x.lv=1;x.xp=0;}if(!(x.xp>=0))x.xp=0;if(!x.xa||typeof x.xa!=='object')x.xa={};if(!Array.isArray(x.cht)||x.cht.length!==5)x.cht=[0,0,0,0,0];if(!(x.evc>=0))x.evc=0;if(typeof x.ttl!=='string')x.ttl='';
+  if(!Array.isArray(x.ev)||x.ev.length!==XT.rods.length)x.ev=XT.rods.map(function(){return 0;});if(!x.mat||typeof x.mat!=='object'||Array.isArray(x.mat))x.mat={};
+  if(!x.exc||typeof x.exc!=='object'||Array.isArray(x.exc))x.exc={};
+  if(!x.mu||typeof x.mu!=='object'||Array.isArray(x.mu))x.mu={cs:[],th:0,pin:[]};if(!Array.isArray(x.mu.cs))x.mu.cs=[];if(!(x.mu.th>=0))x.mu.th=0;if(!Array.isArray(x.mu.pin))x.mu.pin=[];
+  if(!x.bc||typeof x.bc!=='object'||Array.isArray(x.bc))x.bc={};
+  if(!x.tr||typeof x.tr!=='object'||Array.isArray(x.tr))x.tr={};
+  if(!x.pr||typeof x.pr!=='object'||Array.isArray(x.pr))x.pr={};
+  return x;}
 // Brings a loaded G.x inside what the server accepts (see validateX in lib/expansion.js).
 function xClean(x,asc){
   if(!x||typeof x!=='object')return undefined;
@@ -579,6 +619,37 @@ function xClean(x,asc){
   if(x.mxp&&typeof x.mxp==='object')for(k in x.mxp){i=+k;v=x.mxp[k];if(i%1===0&&i>=0&&i<XT.locs.length&&v>=0&&v<=XT.mastery.max)o.mxp[i]=Math.floor(v);}
   if(x.mxx&&typeof x.mxx==='object')for(k in x.mxx){i=+k;v=x.mxx[k];if(i%1===0&&i>=0&&i<XT.locs.length&&v>=0&&v<=XT.mastery.xp*(XT.mastery.max+1)*(XT.mastery.max+1))o.mxx[i]=Math.floor(v);}
   o.chests=clamp(Math.floor(+x.chests||0),0,XT.chestMax);
+  // Fishing level, XP, equipped title, expansion achievements, chests by tier and event catches (see validateX).
+  o.lv=clamp(Math.floor(+x.lv||1),1,XT.level.max);
+  o.xp=o.lv>=XT.level.max?0:clamp(Math.floor(+x.xp||0),0,xLvNeed(o.lv));
+  o.xa={};if(x.xa&&typeof x.xa==='object')XT.ach.forEach(function(a){if(x.xa[a.id]===1)o.xa[a.id]=1;});
+  o.ttl=(typeof x.ttl==='string'&&(XT.titles.some(function(t){return t.id===x.ttl;})||XT.ach.some(function(a){return a.ttl&&a.id===x.ttl;})||XT.book.goals.some(function(g){return g.id===x.ttl;})))?x.ttl:'';
+  o.cht=[0,0,0,0,0];
+  if(Array.isArray(x.cht)&&x.cht.length===5){var room=XT.chestMax-o.chests;for(i=0;i<5;i++){v=clamp(Math.floor(+x.cht[i]||0),0,room);o.cht[i]=v;room-=v;}}
+  o.evc=clamp(Math.floor(+x.evc||0),0,1e9);
+  // Rod evolution tiers (only owned rods can be evolved) and the materials stash.
+  o.ev=XT.rods.map(function(r,j){return (Array.isArray(x.ev)&&o.rods.indexOf(j)>=0)?clamp(Math.floor(+x.ev[j]||0),0,XT.evo.max):0;});
+  o.mat={};XT.mats.forEach(function(m){var q=x.mat&&typeof x.mat==='object'?Math.floor(+x.mat[m.id]||0):0;if(q>0)o.mat[m.id]=clamp(q,0,XT.evo.matMax);});
+  // Milestone places: an owned place whose fishing level or mastery requirement is not met is dropped (levels and mastery only ever go up, so honest saves keep theirs).
+  o.locs=o.locs.filter(function(j){var l=XT.locs[j];return j===0||((l.lv|0)<=o.lv&&(!l.mast||(o.mxp[l.mast[0]]||0)>=l.mast[1]));});
+  if(o.locs.indexOf(o.loc)<0)o.loc=0;
+  // Exclusive catch counts, keyed '<place>_<n>', only for places that are owned.
+  o.exc={};
+  if(x.exc&&typeof x.exc==='object'&&!Array.isArray(x.exc))for(k in x.exc){var mm=/^(\d)_(\d)$/.exec(k);v=Math.floor(+x.exc[k]);if(mm&&+mm[1]<XT.locs.length&&+mm[2]<3&&o.locs.indexOf(+mm[1])>=0&&v>=1)o.exc[k]=clamp(v,1,1e9);}
+  // Book goals already claimed; a Book title needs its goal claimed.
+  o.bc={};if(x.bc&&typeof x.bc==='object'&&!Array.isArray(x.bc))XT.book.goals.forEach(function(g){if(x.bc[g.id]===1)o.bc[g.id]=1;});
+  if(o.ttl&&XT.book.goals.some(function(g){return g.id===o.ttl;})&&o.bc[o.ttl]!==1)o.ttl='';
+  // Museum: Epic+ catches on display, a theme unlocked by fishing level, and pinned achievements that are earned.
+  var mu=x.mu&&typeof x.mu==='object'&&!Array.isArray(x.mu)?x.mu:{};
+  o.mu={cs:[],th:0,pin:[]};
+  if(Array.isArray(mu.cs))mu.cs.forEach(function(c){if(o.mu.cs.length<XT.museum.cases&&Array.isArray(c)&&c.length===3&&c[0]%1===0&&c[0]>=XT.museum.minRar&&c[0]<=16&&c[1]%1===0&&c[1]>=0&&c[1]<=4&&c[2]%1===0&&c[2]>=0&&c[2]<=4e12)o.mu.cs.push([c[0],c[1],c[2]]);});
+  if(mu.th%1===0&&mu.th>=0&&mu.th<XT.museum.themes.length&&XT.museum.themes[mu.th].lv<=o.lv)o.mu.th=mu.th;
+  if(Array.isArray(mu.pin))mu.pin.forEach(function(id){if(o.mu.pin.length<XT.museum.pins&&o.mu.pin.indexOf(id)<0&&o.xa[id]===1)o.mu.pin.push(id);});
+  // Tournament windows already claimed (the server also keeps a one-time marker per window).
+  o.pr={};
+  if(x.pr&&typeof x.pr==='object'&&!Array.isArray(x.pr)){var np=0;for(k in x.pr){if(np<64&&/^[A-Z0-9]{1,40}$/.test(k)&&x.pr[k]===1){o.pr[k]=1;np++;}}}
+  o.tr={};
+  if(x.tr&&typeof x.tr==='object'&&!Array.isArray(x.tr)){var cw=Math.floor((Date.now()+xSkew)/XT.tn.ms),nt=0;for(k in x.tr){if(nt<64&&/^\d{1,9}$/.test(k)&&+k<=cw+1&&x.tr[k]===1){o.tr[k]=1;nt++;}}}
   return o;
 }
 // The global event schedule: a pure function of (corrected) server time, identical to slotEvent in lib/expansion.js.
@@ -593,12 +664,39 @@ function xSlot(s){
 }
 function xEvNow(){if(!xOn)return null;var n=xNow(),e=xSlot(Math.floor(n/XT.slot));return e&&n>=e.start&&n<e.end?e:null;}
 // Multiplier of one kind ('luck','cash','mut') from the equipped rod and location, the running event and (for cash) location mastery.
+// Rod evolution: tier of the equipped rod, and its ability multiplier for one kind ('mut' or 'chest'; 1 when the rod's ability is another kind).
+function xEvoTier(){return (G.x&&G.x.ev&&G.x.ev[G.x.rod])|0;}
+function xAb(k){var r=XT.rods[G.x.rod];return r&&r.ab&&r.ab.k===k?1+r.ab.v*xEvoTier():1;}
+// Places: the milestone that still blocks one ('' when it can be bought), the rarity bias of the current place, its scene colours, and its ambient effect.
+function xLocLock(i){var l=XT.locs[i],x=G.x;if(!l||!x)return 'Unknown place';if(G.asc<l.asc)return 'Needs '+l.asc+' ascension'+(l.asc===1?'':'s');if((x.lv||1)<l.lv)return 'Needs fishing level '+l.lv;if(l.mast&&((x.mxp&&x.mxp[l.mast[0]])||0)<l.mast[1])return 'Needs '+XT.locs[l.mast[0]].n+' mastery '+l.mast[1];return '';}
+function xRb(i){var l=G.x&&XT.locs[G.x.loc];if(!l||!l.rb)return 1;return i<=2?l.rb[0]:i<=5?l.rb[1]:l.rb[2];}
+function xVis(k){if(!xOn||!G.x||!G.x.loc)return null;var l=XT.locs[G.x.loc];return l&&l.vis?l.vis[k]:null;}
+function xBgRebuild(){try{if(typeof buildBg==='function'&&W>0)buildBg();}catch(e){}}
+function xAmb(){
+  if(!xOn||!G.x||!G.x.loc)return;
+  var l=XT.locs[G.x.loc],k=l&&l.vis?l.vis.amb:'none',i,x,y,r,g,n=PF()?10:26,wh=Math.max(40,H-y0);
+  if(k==='none')return;
+  ctx.save();
+  if(k==='bubbles'){ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.2;for(i=0;i<n;i++){x=(i*97.3)%W+Math.sin(t*0.03+i)*6;y=H-((i*61+t*(0.5+(i%3)*0.3))%wh);ctx.beginPath();ctx.arc(x,y,2+(i%4),0,6.2832);ctx.stroke();}}
+  else if(k==='snow'){ctx.fillStyle='rgba(255,255,255,.85)';for(i=0;i<n;i++){x=((i*83.1)+Math.sin(t*0.02+i)*14+W)%W;y=(i*47+t*(0.5+(i%3)*0.3))%H;ctx.beginPath();ctx.arc(x,y,1.2+(i%3)*0.6,0,6.2832);ctx.fill();}}
+  else if(k==='embers'){ctx.globalCompositeOperation='lighter';for(i=0;i<n;i++){x=(i*71.7+Math.sin(t*0.04+i)*10+W)%W;y=H-((i*43+t*(0.8+(i%4)*0.25))%wh);ctx.fillStyle='rgba(255,'+(120+(i%4)*30)+',40,.75)';ctx.beginPath();ctx.arc(x,y,1.2+(i%3),0,6.2832);ctx.fill();}}
+  else if(k==='motes'){ctx.globalCompositeOperation='lighter';for(i=0;i<n;i++){x=((i*89.3+Math.sin(t*0.015+i*2)*20)%W+W)%W;y=y0+((i*59+Math.cos(t*0.012+i)*16)%wh+wh)%wh;ctx.fillStyle='rgba(90,200,255,'+(0.25+0.25*Math.sin(t*0.05+i)).toFixed(3)+')';ctx.beginPath();ctx.arc(x,y,2+(i%3),0,6.2832);ctx.fill();}}
+  else if(k==='halo'){ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(255,236,160,.08)';ctx.fillRect(0,0,W,H);ctx.strokeStyle='rgba(255,236,160,.5)';ctx.lineWidth=2;for(i=0;i<4;i++){r=(t*0.4+i*40)%160;ctx.globalAlpha=1-r/160;ctx.beginPath();ctx.arc(W/2,y0*0.6,r+10,0,6.2832);ctx.stroke();}}
+  else if(k==='glitch'){if(((t/6)|0)%7===0){var gc=['rgba(0,255,160,.18)','rgba(255,0,200,.16)','rgba(0,160,255,.16)'];for(i=0;i<3;i++){y=(t*37+i*131)%H;ctx.fillStyle=gc[i];ctx.fillRect(((t*13+i*91)%60)-30,y,W,3+i*2);}}}
+  else if(k==='void'){g=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.25,W/2,H/2,Math.max(W,H)*0.75);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(40,0,90,.55)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation='lighter';for(i=0;i<Math.floor(n/2);i++){x=((i*101.7+Math.sin(t*0.01+i)*30)%W+W)%W;y=y0+((i*67+t*0.2)%wh);ctx.fillStyle='rgba(170,80,255,'+(0.2+0.2*Math.sin(t*0.04+i)).toFixed(3)+')';ctx.beginPath();ctx.arc(x,y,2+(i%3),0,6.2832);ctx.fill();}}
+  ctx.restore();
+}
 function xMul(k){
   if(!xOn||!G.x)return 1;
-  if(k==='chest'){var ec=xEvNow();return ec?ec.ev.chest:1;}
+  if(k==='chest'){var ec=xEvNow();return (ec?ec.ev.chest:1)*xAb('chest');}
   var m=(k==='luck'||k==='cash')?XT.rods[G.x.rod][k]*XT.locs[G.x.loc][k]:1,e=xEvNow();
   if(e)m*=e.ev[k];
   if(k==='cash')m*=1+XT.mastery.cash*(G.x.mxp[G.x.loc]||0);
+  if(k==='cash')m*=1+XT.level.cash*((G.x.lv||1)-1);
+  else if(k==='luck')m*=1+XT.level.luck*((G.x.lv||1)-1);
+  if(k==='cash')m*=1+XT.evo.cash*xEvoTier();
+  else if(k==='luck')m*=1+XT.evo.luck*xEvoTier();
+  else if(k==='mut')m*=xAb('mut');
   return m;
 }
 
@@ -611,8 +709,176 @@ function xMastery(){
   if(xp>=need){xp-=need;x.mxp[i]=lv+1;toast(XT.locs[i].n+' mastery level '+(lv+1)+'!',true);}
   x.mxx[i]=xp;dirty=true;
 }
+// Fishing level: every catch earns XP (more for rarer fish), each level adds a little cash and luck (see xMul). Also counts event catches and checks the expansion achievements.
+function xGrant(id){
+  var x=xInit(),a;if(x.xa[id])return;
+  XT.ach.some(function(q){if(q.id===id){a=q;return true;}});if(!a)return;
+  x.xa[id]=1;dirty=true;toast('Achievement: '+a.n+(a.ttl?' - title unlocked: '+a.ttl:''),true);
+  tone(660,0.1,'triangle',0.06);tone(990,0.18,'triangle',0.06,0.09);
+}
+function xAllMuts(){var m,r,ok;for(m=1;m<MUT.length;m++){ok=false;for(r=0;r<NR&&!ok;r++)if(G.book[r+'_'+m])ok=true;if(!ok)return false;}return true;}
+function xAchCheck(r,m,e){
+  var x=xInit(),eid=e?e.ev.id:'';
+  if(r>=4)xGrant('x_leg');
+  if(G.caught>=1000)xGrant('x_1k');
+  if(!x.xa.x_mut&&xAllMuts())xGrant('x_mut');
+  if(x.locs.length>=XT.locs.length)xGrant('x_loc');
+  if(r>=14)xGrant('x_1m');
+  if(x.lv>=10)xGrant('x_lv10');if(x.lv>=25)xGrant('x_lv25');if(x.lv>=XT.level.max)xGrant('x_lv50');
+  if((G.chests|0)>=25)xGrant('x_chest');
+  if(x.rods.length>=XT.rods.length)xGrant('x_rod');
+  if(x.evc>=25)xGrant('x_evt');
+  if(eid==='bloodmoon'&&r>=4)xGrant('x_moon');
+  if(/void/.test(eid)&&m===4)xGrant('x_void');
+}
+function xCatch(r,m){
+  if(!xOn||!G.x)return;
+  var x=xInit(),e=xEvNow(),need;
+  xDemoPts+=1+r*3+m*2;
+  if(e)x.evc=Math.min(1e9,x.evc+1);
+  if(x.lv<XT.level.max){
+    x.xp+=1+r*2+m;
+    while(x.lv<XT.level.max&&x.xp>=(need=xLvNeed(x.lv))){x.xp-=need;x.lv++;toast('Fishing level '+x.lv+'!',true);tone(784,0.1,'triangle',0.06);tone(1175,0.16,'triangle',0.06,0.08);}
+    if(x.lv>=XT.level.max)x.xp=0;
+  }
+  // Materials for rod evolution: scales drop from most catches, pearls from Rare+, void shards from Mythic+.
+  var mx=XT.evo.matMax,dr=function(id,n){x.mat[id]=Math.min(mx,(x.mat[id]|0)+n);};
+  if(Math.random()<0.4)dr('scale',1+(r>>2));
+  if(r>=2&&Math.random()<0.25)dr('pearl',1+(r>>3));
+  if(r>=5&&Math.random()<0.15){dr('shard',1);toast('Void Shard found!');}
+  // Exclusive catches: every place has three creatures found nowhere else (G.x.exc). Each pays a bonus from its rarity's sell value (capped at Mythic), ten times more the first time.
+  var L=XT.locs[x.loc];
+  if(L&&L.exc&&Math.random()<XT.excChance){
+    var pt=0,q,j,ek,fresh,ex,bonus;
+    for(j=0;j<3;j++)pt+=L.exc[j].p;
+    q=Math.random()*pt;for(j=0;j<2;j++){q-=L.exc[j].p;if(q<=0)break;}
+    ex=L.exc[j];ek=x.loc+'_'+j;fresh=!x.exc[ek];x.exc[ek]=Math.min(1e9,(x.exc[ek]|0)+1);
+    bonus=ex.v*RAR[Math.min(r,5)].sell/10*(fresh?10:1);
+    earn(bonus);toast((fresh?'New exclusive: ':'Exclusive catch: ')+ex.n+' +$'+fmt(bonus),fresh);
+  }
+  xAchCheck(r,m,e);
+  xTnScore(r,m);
+  dirty=true;
+}
+// ---- tournaments (owner preview): 6-hour windows with a rotating scoring category. Points are batched and sent to /api/x; the server keeps the board and pays each window once ----
+var xTn={d:null,t:0,busy:false,sb:false,pend:0,last:0,off:false,u:'',msg:''};
+var xCr={d:null,t:0,busy:false,off:false};
+function xTnWho(){if(xTn.u!==acct.name){xTn.u=acct.name;xTn.d=null;xTn.t=0;xTn.pend=0;xTn.off=false;xTn.msg='';xCr.d=null;xCr.t=0;xCr.off=false;}}
+// Crew competition: whose crew earns the most per second this round (the server ranks the income rate each sync reports).
+function xCrFetch(force){
+  xTnWho();
+  if(!xOn||!acct.token||xCr.off||xCr.busy||updReq)return;
+  if(Date.now()-xCr.t<(force?5000:20000))return;
+  xCr.busy=true;xCr.t=Date.now();
+  api('api/x?a=crew').then(function(r){
+    xCr.busy=false;
+    if(r.ok&&r.j&&Array.isArray(r.j.rows))xCr.d=r.j;
+    else if(r.code===404||r.code===401)xCr.off=true;
+    if(tab==='top')renderSafe();
+  }).catch(function(){xCr.busy=false;});
+}
+function xCrHtml(){
+  if(!xOn||!acct.token||xCr.off)return '';
+  xCrFetch();
+  var d=xCr.d,h=`<div class='sech'>&#128081; Crew competition</div>`,i,r;
+  if(!d)return h+`<div class='note'>Loading...</div>`;
+  h+=`<div class='note'>${d.me&&d.me.rank?`You are #${d.me.rank} with ${fmt(d.me.inc)}/s`:'Sync your game to join this round'} &bull; ${d.total} crew${d.total===1?'':'s'}</div>`;
+  for(i=0;i<d.rows.length;i++){
+    r=d.rows[i];
+    h+=`<div class='lbrow${r.name===acct.name?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><b>${esc(r.name)}</b></div></div><div style='margin-left:auto;font-weight:900'>${fmt(r.inc)}/s</div></div>`;
+  }
+  if(!d.rows.length)h+=`<div class='note'>No crews on the board yet this round.</div>`;
+  return h+`<div class='note'>Best income per second synced during the 6-hour round. Keep syncing to hold your place.</div>`;
+}
+function xTnCat(id){var c=XT.tn.cats,i;for(i=0;i<c.length;i++)if(c[i].id===id)return c[i];return c[0];}
+function xTnFetch(force){
+  xTnWho();
+  if(!xOn||!acct.token||xTn.off||xTn.busy||updReq)return;
+  if(Date.now()-xTn.t<(force?5000:20000))return;
+  xTn.busy=true;xTn.t=Date.now();
+  api('api/x?a=tourney').then(function(r){
+    xTn.busy=false;
+    if(r.ok&&r.j&&Array.isArray(r.j.rows)){xTn.d=r.j;xTn.msg='';}
+    else if(r.code===404||r.code===401){xTn.off=true;}
+    else xTn.msg='Tournament is offline right now.';
+    if(tab==='top')renderSafe();
+  }).catch(function(){xTn.busy=false;xTn.msg='Tournament is offline right now.';});
+}
+// Points per catch depend on the current category; value scales with the log of the sell value so every rarity matters.
+function xTnPts(cat,r,m){
+  var v=RAR[Math.min(r,LE)].sell*MUT[m].m;
+  if(cat==='value')return 1+Math.floor(Math.log(v/10+1)/Math.LN2);
+  if(cat==='rare')return r>=3?(r-2)*3+m*2:0;
+  return m>0?3*m+1+(r>>1):0;
+}
+function xTnScore(r,m){
+  xTnWho();
+  if(!xOn||!acct.token||xTn.off||devTaint||G.dt===1)return;
+  if(!xTn.d){xTnFetch();return;}
+  var p=xTnPts(xTn.d.cat,r,m|0);
+  if(p>0)xTn.pend=Math.min(XT.tn.ptsMax*4,xTn.pend+p);
+}
+function xTnFlush(){
+  if(!xOn||!acct.token||xTn.off||xTn.sb||xTn.pend<1||updReq)return;
+  var pts=Math.min(xTn.pend,XT.tn.ptsMax),who=xTn.u;
+  xTn.sb=true;xTn.last=Date.now();
+  api('api/x',{a:'score',pts:pts}).then(function(r){
+    xTn.sb=false;if(who!==xTn.u)return;
+    if(r.ok){xTn.pend=Math.max(0,xTn.pend-pts);if(xTn.d&&r.j.rank&&r.j.w===xTn.d.w)xTn.d.me={rank:r.j.rank,pts:r.j.pts};xTn.t=0;}
+    else if(r.code===404||r.code===401)xTn.off=true;
+    else if(r.code===422)xTn.pend=Math.max(0,xTn.pend-pts);
+  }).catch(function(){xTn.sb=false;});
+}
+function xTnTick(){
+  if(!xOn||!acct.token||xTn.off||document.hidden)return;
+  var now=Date.now()+xSkew,el=$('xtnc');
+  if(xTn.d&&now>=xTn.d.end)xTnFetch(true);
+  if(xTn.pend>0&&Date.now()-xTn.last>=15000)xTnFlush();
+  if(el&&xTn.d)el.textContent=xFmtT(xTn.d.end-now);
+}
+setInterval(xTnTick,1000);
+function xTnClaim(w){
+  if(!xOn||xTn.busy||!(w>=0))return;
+  xTn.busy=true;
+  api('api/x',{a:'claim',w:w}).then(function(r){
+    xTn.busy=false;
+    if(r.ok&&r.j.mat){
+      var x=xInit(),k,ks,txt=[];
+      for(k in r.j.mat){x.mat[k]=Math.min(XT.evo.matMax,(x.mat[k]|0)+(r.j.mat[k]|0));}
+      x.tr[w]=1;ks=Object.keys(x.tr).map(Number).sort(function(a,b){return b-a;});
+      for(k=40;k<ks.length;k++)delete x.tr[ks[k]];
+      XT.mats.forEach(function(mm){if(r.j.mat[mm.id])txt.push(r.j.mat[mm.id]+' '+mm.i);});
+      toast('Tournament '+r.j.reward+' (#'+r.j.rank+'): '+txt.join(' '),true);tone(660,0.1,'triangle',0.06);tone(990,0.18,'triangle',0.06,0.09);
+      dirty=true;xTn.t=0;
+    }else toast((r.j&&r.j.error)||'Could not claim that tournament.');
+    xTnFetch(true);if(tab==='top')renderSafe();
+  }).catch(function(){xTn.busy=false;toast('Tournament is offline right now.');});
+}
+function xTnHtml(){
+  xTnWho();
+  if(!xOn||!acct.token||xTn.off)return '';
+  xTnFetch();
+  var d=xTn.d,h=`<div class='sech'>&#127918; Tournament</div>`,c,i,r,me;
+  if(!d)return h+`<div class='note'>${xTn.msg||'Loading...'}</div>`;
+  c=xTnCat(d.cat);
+  h+=`<div class='card shopc' style='--rc:#ffe36b'><div class='ic'>${c.i}</div><div class='info'><b>${esc(c.n)}</b><small>${esc(c.d)}. Ends in <span id='xtnc'>${xFmtT(d.end-(Date.now()+xSkew))}</span></small></div></div>`;
+  me=d.me&&d.me.rank?`You are #${d.me.rank} with ${fmt(d.me.pts)} pts`:'Catch something to join';
+  if(xTn.pend>0)me+=` (+${fmt(xTn.pend)} syncing)`;
+  h+=`<div class='note'>${me} &bull; ${d.total} player${d.total===1?'':'s'}</div>`;
+  for(i=0;i<d.claim.length;i++){
+    r=d.claim[i];
+    h+=`<div class='card shopc' style='--rc:#6bffb0'><div class='ic'>&#127873;</div><div class='info'><b>${esc(r.reward)}: #${r.rank}</b><small>${esc(xTnCat(r.cat).n)} &bull; ${fmt(r.pts)} pts</small></div><button class='btn green' data-a='xtclaim' data-w='${r.w|0}'${xTn.busy?' disabled':''}>Claim</button></div>`;
+  }
+  for(i=0;i<d.rows.length&&i<10;i++){
+    r=d.rows[i];
+    h+=`<div class='lbrow${r.name===acct.name?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><b>${esc(r.name)}</b></div></div><div style='margin-left:auto;font-weight:900'>${fmt(r.pts)}</div></div>`;
+  }
+  if(!d.rows.length)h+=`<div class='note'>No scores yet this round. Be the first!</div>`;
+  h+=`<div class='note'>Rounds last 6 hours. Finish a round on the board and claim materials once it ends.</div>`;
+  return h;
+}
 // ---- expansion UI: dock, live-event pill, Locations / Rods / Events panels (only built once the owner preview flag is on) ----
-var X_TABS={xloc:1,xrod:1,xevt:1};
+var X_TABS={xloc:1,xrod:1,xpro:1,xtrn:1};
 function xFmtT(ms){var s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60);return m>=60?Math.floor(m/60)+'h '+(m%60)+'m':m>0?m+'m '+(s%60)+'s':s+'s';}
 function xDockInit(){
   if($('xdock'))return;
@@ -620,7 +886,7 @@ function xDockInit(){
   st.textContent='#xdock{position:absolute;right:6px;bottom:6px;z-index:4;display:none;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:62%}#xdock .btn.on{box-shadow:0 0 0 3px #ffe36b}#stage.ult #xdock{display:none!important}@media (max-height:480px){#xdock{gap:4px}#xdock .btn{font-size:11px;padding:3px 7px}}';
   document.head.appendChild(st);
   d.id='xdock';
-  d.innerHTML=`<span class='pill' id='xevp' style='display:none'></span><button class='btn' data-xtab='xloc' title='Locations'>&#128506; Places</button><button class='btn' data-xtab='xrod' title='Rods'>&#127907; Rods</button><button class='btn' data-xtab='xevt' title='Live and upcoming events'>&#127775; Events</button>`;
+  d.innerHTML=`<span class='pill' id='xevp' style='display:none'></span><button class='btn' data-xtab='xloc' title='Locations'>&#128506; Places</button><button class='btn' data-xtab='xpro' title='Redeem a promo code'>&#127873; Promo</button><button class='btn' data-xtab='xrod' title='Rods'>&#127907; Rods</button><button class='btn' data-xtab='xtrn' title='Tournament'>&#127942; Tourney</button>`;
   stage.appendChild(d);
   d.addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b&&b.dataset&&b.dataset.xtab)gotoTab(b.dataset.xtab);});
   body.addEventListener('click',xAct);
@@ -636,38 +902,118 @@ function xDockTick(){
   if(!p)return;
   if(e){p.style.display='';p.style.background='linear-gradient(#fff,'+e.ev.col+')';p.innerHTML=e.ev.n+' '+xFmtT(e.end-xNow());}else p.style.display='none';
 }
-function xCard(rc,title,sub,btn){return `<div class='card' style='--rc:${rc};grid-template-columns:1fr auto'><div class='info'><b>${title}</b><br><small>${sub}</small></div>${btn}</div>`;}
+function xCard(rc,title,sub,btn,p){return `<div class='card' style='--rc:${rc};grid-template-columns:1fr auto'><div class='info'><b>${title}</b><br><small>${sub}</small>${p>=0?`<div class='bar'><i style='width:${clamp(p,0,1)*100}%'></i></div>`:''}</div>${btn}</div>`;}
 function xLocHtml(){
-  var x=xInit(),h=`<div class='note'>Each place changes your luck and cash. Mastery adds +${Math.round(XT.mastery.cash*100)}% cash per level.</div>`;
+  var x=xInit(),h=`<div class='note'>Each place changes your luck, cash, rarity odds and scenery, and hides three exclusive catches. Mastery adds +${Math.round(XT.mastery.cash*100)}% cash per level. The last three places also need a fishing level and mastery of an earlier place.</div>`;
   XT.locs.forEach(function(l,i){
     var own=x.locs.indexOf(i)>=0,btn,sub=`Luck x${l.luck} &bull; Cash x${l.cash} &bull; Mastery Lv ${x.mxp[i]||0}/${XT.mastery.max}${(x.mxp[i]||0)<XT.mastery.max?' ('+((x.mxx&&x.mxx[i])||0)+'/'+(XT.mastery.xp*((x.mxp[i]||0)+1)*((x.mxp[i]||0)+1))+' catches)':''}`;
     if(x.loc===i)btn=`<button class='btn' disabled>Here</button>`;
     else if(own)btn=`<button class='btn' data-xa='loc' data-i='${i}'>Go</button>`;
-    else if(G.asc<l.asc)btn=`<small>Needs ${l.asc} ascension${l.asc===1?'':'s'}</small>`;
+    else if(xLocLock(i))btn=`<small>${xLocLock(i)}</small>`;
     else btn=`<button class='btn' data-xa='loc' data-i='${i}' data-cost='${l.cost}'>$${fmt(l.cost)}</button>`;
+    sub+=`<br>Epic+ x${l.rb[1]} &bull; Divine+ x${l.rb[2]}`+(l.rb[0]<1?` &bull; Common-Rare x${l.rb[0]}`:'');
+    sub+=`<br>`+(own?l.exc.map(function(e,j){var c=x.exc[i+'_'+j]|0;return c?e.n+' x'+c:'???';}).join(' &bull; '):'3 exclusive catches');
     h+=xCard('#7dd3ff',l.n,sub,btn);
   });
   return h;
 }
+function xMatsLine(){var x=xInit();return `<div class='note'>`+XT.mats.map(function(m){return m.i+' '+m.n+' '+fmt(x.mat[m.id]|0);}).join(' &bull; ')+`</div>`;}
+function xEvoCostText(c){return c.map(function(n,j){return n?n+' '+XT.mats[j].i:'';}).filter(Boolean).join(' ');}
 function xRodHtml(){
-  var x=xInit(),h=`<div class='note'>A better rod raises luck and cash everywhere. Buy them in order.</div>`;
+  var x=xInit(),h=`<div class='note'>A better rod raises luck and cash everywhere. Buy them in order, then evolve them with materials from your catches: each tier adds cash, luck and boosts the rod's ability.</div>`+xMatsLine();
   XT.rods.forEach(function(r,i){
-    var own=x.rods.indexOf(i)>=0,btn,sub=`Luck x${r.luck} &bull; Cash x${r.cash}`;
+    var own=x.rods.indexOf(i)>=0,btn,evb='',tr=x.ev[i]|0,c,can,j,sub=`Luck x${r.luck} &bull; Cash x${r.cash}`+(own?` &bull; Tier ${tr}/${XT.evo.max}`:'')+`<br>${r.ab.n}: ${r.ab.d}`;
     if(x.rod===i)btn=`<button class='btn' disabled>Equipped</button>`;
     else if(own)btn=`<button class='btn' data-xa='rod' data-i='${i}'>Equip</button>`;
     else if(x.rods.indexOf(i-1)<0)btn=`<small>Needs ${XT.rods[i-1].n}</small>`;
     else btn=`<button class='btn' data-xa='rod' data-i='${i}' data-cost='${r.cost}'>$${fmt(r.cost)}</button>`;
+    if(own){
+      if(tr>=XT.evo.max)evb=`<small style='color:#9be8a8'>Max evolved</small>`;
+      else{c=r.evo[tr];can=true;for(j=0;j<3;j++)if((x.mat[XT.mats[j].id]|0)<c[j])can=false;evb=`<button class='btn' data-xa='evo' data-i='${i}'${can?'':' disabled'}>Evolve ${xEvoCostText(c)}</button>`;}
+      btn=`<span style='display:flex;flex-direction:column;gap:4px;align-items:stretch'>${btn}${evb}</span>`;
+    }
     h+=xCard('#ffb347',r.n,sub,btn);
   });
   return h;
 }
-function xEvtHtml(){
-  var n=xNow(),s0=Math.floor(n/XT.slot),e=xEvNow(),c=0,s,q,h=`<div class='note'>Events happen for everyone at the same moment, on the same server clock.</div>`;
-  if(e)h+=xCard(e.ev.col,e.ev.n+' (live)',`${e.ev.d} &bull; ends in ${xFmtT(e.end-n)}`,'');
-  else h+=`<div class='note'>No event right now.</div>`;
-  h+=`<div class='sech'>Coming up</div>`;
-  for(s=s0;s<s0+16&&c<5;s++){q=xSlot(s);if(q&&q.start>n){c++;h+=xCard(q.ev.col,q.ev.n,`${q.ev.d} &bull; in ${xFmtT(q.start-n)}`,'');}}
-  if(!c)h+=`<div class='note'>Nothing scheduled in the next few hours.</div>`;
+// ---- Promo codes (preview: the code table lives here; real rewards-by-code will move to a server endpoint later) ----
+var XPROMO={'WELCOME':{n:'Welcome gift',gems:3,cash:300},'LUCKYFISH':{n:'Lucky bait',bait:'luck',secs:300},'FIRSTFACE':{n:'Free face',face:[3,0]}};
+var xPro={msg:'',ok:false};
+function xProNorm(s){return String(s||'').replace(/[\s-]+/g,'').toUpperCase();}
+function xRedeem(raw){
+  var x=xInit(),c=xProNorm(raw),d=XPROMO[c],got=[];
+  if(!x.pr||typeof x.pr!=='object'||Array.isArray(x.pr))x.pr={};
+  if(!c){xPro.msg='Type a code first.';xPro.ok=false;return;}
+  if(!d){xPro.msg='That code is not valid.';xPro.ok=false;return;}
+  if(x.pr[c]){xPro.msg='You already used that code.';xPro.ok=false;return;}
+  x.pr[c]=1;
+  if(d.gems){G.gems+=d.gems;got.push('+'+d.gems+' gems');}
+  if(d.cash){var v=Math.max(1000,curInc*d.cash);earn(v);got.push('+$'+fmt(v));}
+  if(d.bait&&BAITS[d.bait]){G.bf[d.bait]+=d.secs;got.push(BAITS[d.bait].n+' '+d.secs+'s');}
+  if(d.face){devAdd(d.face[0],d.face[1],1);got.push('a '+RAR[d.face[0]].n+' face');}
+  xPro.msg=d.n+'! You got '+got.join(', ')+'.';xPro.ok=true;
+  toast(d.n+' redeemed!',true);tone(660,0.1,'triangle',0.06);tone(990,0.18,'triangle',0.06,0.09);tone(1320,0.2,'triangle',0.06,0.18);
+  dirty=true;
+}
+function xProHtml(){
+  var x=xInit(),n=x.pr?Object.keys(x.pr).length:0;
+  return `<div class='note'>Got a promo code? Type it below to claim your reward. Each code works once per account. Dashes, spaces and capital letters don't matter.</div><div class='card' style='--rc:#ffd23f;grid-template-columns:1fr auto'><div class='info'><input id='xprin' type='text' maxlength='40' autocomplete='off' autocapitalize='characters' spellcheck='false' placeholder='ENTER CODE' style='width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:2px solid #ffd23f;background:rgba(0,0,0,.35);color:#fff;font:inherit;font-weight:800;letter-spacing:1px'></div><button class='btn gold' data-xa='promo'>Redeem</button></div>${xPro.msg?`<div class='note' style='color:${xPro.ok?'#9be8a8':'#ff9b9b'}'>${esc(xPro.msg)}</div>`:''}<div class='note'>Codes redeemed so far: <b>${n}</b></div>`;
+}
+// ---- Tournament panel: the live board when signed in, otherwise a local demo board so the preview shows something ----
+var xDemoPts=0;
+function xTrnHtml(){
+  var live=xOn&&acct&&acct.token&&!xTn.off?xTnHtml():'';
+  if(live)return live+xCrHtml();
+  var w=Math.floor(xNow()/XT.tn.ms),c=XT.tn.cats[((w%XT.tn.cats.length)+XT.tn.cats.length)%XT.tn.cats.length],end=(Math.floor(xNow()/XT.tn.ms)+1)*XT.tn.ms,names=['Marlin','Kelpie','Barnacle','Skipper','Dory','Finn','Coral','Pike'],rows=[],i,me=Math.floor(xDemoPts),h;
+  for(i=0;i<names.length;i++)rows.push({name:names[i],pts:Math.floor(3000/(i+1.4))});
+  rows.push({name:'You',pts:me,me:true});
+  rows.sort(function(a,b){return b.pts-a.pts;});
+  h=`<div class='sech'>&#127942; Tournament (demo board)</div><div class='card shopc' style='--rc:#ffe36b'><div class='ic'>${c.i}</div><div class='info'><b>${esc(c.n)}</b><small>${esc(c.d)}. Ends in ${xFmtT(end-xNow())}</small></div></div><div class='note'>Sign in to compete on the real board. Here you play against sample rivals; catch fish to climb.</div>`;
+  rows.forEach(function(r,j){h+=`<div class='lbrow${r.me?' me':''}'><div class='rk'>${j<3?MED[j]:'#'+(j+1)}</div><div class='lbi'><div><b>${esc(r.name)}</b></div></div><div style='margin-left:auto;font-weight:900'>${fmt(r.pts)}</div></div>`;});
+  return h+`<div class='note'>Rounds last 6 hours. Finish on the board and claim materials once the round ends.</div>`;
+}
+// Titles the player can wear: milestone levels already reached, plus the title of every achievement earned.
+function xTitles(){
+  var x=xInit(),o=[];
+  XT.book.goals.forEach(function(g){if(x.bc[g.id])o.push({id:g.id,n:g.ttl});});
+  XT.titles.forEach(function(t){if(x.lv>=t.lv)o.push({id:t.id,n:t.n});});
+  XT.ach.forEach(function(a){if(a.ttl&&x.xa[a.id])o.push({id:a.id,n:a.ttl});});
+  return o;
+}
+function xTitleName(id){var t=null;XT.book.goals.forEach(function(q){if(q.id===id)t=q.ttl;});XT.titles.forEach(function(q){if(q.id===id)t=q.n;});XT.ach.forEach(function(q){if(q.ttl&&q.id===id)t=q.ttl;});return t||'';}
+// Progress [now, goal] for the achievements that count something (null for the rest, which are one-off moments).
+function xAchProg(id){
+  var x=xInit();
+  switch(id){
+    case 'x_1k':return [G.caught|0,1000];
+    case 'x_chest':return [G.chests|0,25];
+    case 'x_evt':return [x.evc|0,25];
+    case 'x_lv10':return [x.lv,10];
+    case 'x_lv25':return [x.lv,25];
+    case 'x_lv50':return [x.lv,XT.level.max];
+    case 'x_loc':return [x.locs.length,XT.locs.length];
+    case 'x_rod':return [x.rods.length,XT.rods.length];
+  }
+  return null;
+}
+function xStatsHtml(){
+  var x=xInit(),mx=XT.level.max,need=x.lv>=mx?0:xLvNeed(x.lv),tl=xTitles(),nm=xTitleName(x.ttl),done=0,h;
+  h=`<div class='sech'>&#11088; Fishing level</div>`;
+  h+=goalCard('&#127907;','Level '+x.lv+' / '+mx+(nm?' &bull; '+esc(nm):''),x.lv>=mx?'Max level reached':fmt(x.xp)+' / '+fmt(need)+' XP &bull; each catch earns XP, rarer fish earn more',x.lv>=mx?1:x.xp/need);
+  h+=srow('Level bonus','+'+((x.lv-1)*XT.level.cash*100).toFixed(1)+'% cash, +'+((x.lv-1)*XT.level.luck*100).toFixed(1)+'% luck');
+  h+=srow('Caught during events',fmt(x.evc));
+  h+=`<div class='sech'>&#127894; Titles</div><div style='display:flex;flex-wrap:wrap;gap:6px;padding:4px 2px'>`;
+  h+=`<button class='btn${x.ttl===''?' on':''}' data-xa='title' data-t=''>None</button>`;
+  tl.forEach(function(t){h+=`<button class='btn${x.ttl===t.id?' on':''}' data-xa='title' data-t='${t.id}'>${esc(t.n)}</button>`;});
+  if(!tl.length)h+=`<small style='opacity:.7'>Reach level 10 or earn an achievement to unlock titles.</small>`;
+  h+=`</div>`;
+  XT.ach.forEach(function(a){if(x.xa[a.id])done++;});
+  h+=`<div class='sech'>&#127942; Expansion achievements ${done}/${XT.ach.length}</div>`;
+  XT.ach.forEach(function(a){
+    var got=!!x.xa[a.id],pr=got?null:xAchProg(a.id);
+    if(!got&&a.sec)h+=xCard('#555','&#10067; Secret achievement','Keep fishing to discover it','');
+    else h+=xCard(got?'#ffd23f':'#7dd3ff',a.i+' '+a.n,a.d+(a.ttl?' &bull; title: '+a.ttl:'')+(pr?' &bull; '+fmt(Math.min(pr[0],pr[1]))+' / '+fmt(pr[1]):''),got?`<small style='color:#9be8a8'>Earned</small>`:'',pr?pr[0]/pr[1]:-1);
+  });
   return h;
 }
 function xAct(e){
@@ -676,12 +1022,31 @@ function xAct(e){
   var x=xInit(),i=+b.dataset.i,a=b.dataset.xa,t,asc=function(p,q){return p-q;};
   if(a==='loc'&&XT.locs[i]){
     t=XT.locs[i];
-    if(x.locs.indexOf(i)<0){if(G.asc<t.asc||G.coins<t.cost){toast('Not enough coins!');return;}G.coins-=t.cost;x.locs.push(i);x.locs.sort(asc);}
-    x.loc=i;toast('Now fishing at '+t.n);
+    var fresh=x.locs.indexOf(i)<0;
+    if(fresh){var lk=xLocLock(i);if(lk){toast(lk);return;}if(G.coins<t.cost){toast('Not enough coins!');return;}G.coins-=t.cost;x.locs.push(i);x.locs.sort(asc);toast(t.n+' unlocked!',true);tone(520,0.1,'triangle',0.06);tone(780,0.16,'triangle',0.06,0.09);tone(1170,0.24,'triangle',0.06,0.18);}
+    x.loc=i;if(!fresh)toast('Now fishing at '+t.n);xBgRebuild();
   }else if(a==='rod'&&XT.rods[i]){
     t=XT.rods[i];
     if(x.rods.indexOf(i)<0){if(x.rods.indexOf(i-1)<0||G.coins<t.cost){toast('Not enough coins!');return;}G.coins-=t.cost;x.rods.push(i);x.rods.sort(asc);}
     x.rod=i;toast(t.n+' equipped');
+  }else if(a==='evo'&&XT.rods[i]){
+    t=XT.rods[i];var tr=x.ev[i]|0,ec=t.evo[tr],j;
+    if(x.rods.indexOf(i)<0||tr>=XT.evo.max||!ec){toast('Cannot evolve this rod');return;}
+    for(j=0;j<3;j++)if((x.mat[XT.mats[j].id]|0)<ec[j]){toast('Not enough materials!');return;}
+    for(j=0;j<3;j++)x.mat[XT.mats[j].id]=(x.mat[XT.mats[j].id]|0)-ec[j];
+    x.ev[i]=tr+1;toast(t.n+' evolved to tier '+(tr+1)+'!',true);tone(660,0.1,'triangle',0.06);tone(990,0.18,'triangle',0.06,0.09);tone(1320,0.2,'triangle',0.06,0.18);
+  }else if(a==='title'){
+    t=b.dataset.t||'';
+    if(t!==''&&!xTitles().some(function(q){return q.id===t;})){toast('Title not unlocked yet');return;}
+    x.ttl=t;toast(t?'Title: '+xTitleName(t):'Title removed');
+  }else if(a==='promo'){
+    var pin=$('xprin');xRedeem(pin?pin.value:'');dirty=true;render();hudTick();return;
+  }else if(a==='bgoal'){
+    t=null;XT.book.goals.forEach(function(g){if(g.id===b.dataset.t)t=g;});
+    if(!t||x.bc[t.id]){return;}
+    if(Math.floor(disc*100/XT.book.total)<t.pct){toast('Discover more of the Book first');return;}
+    x.bc[t.id]=1;Object.keys(t.mat).forEach(function(id){x.mat[id]=Math.min(XT.evo.matMax,(x.mat[id]|0)+t.mat[id]);});
+    toast(t.n+'! Title unlocked: '+t.ttl,true);tone(660,0.1,'triangle',0.06);tone(990,0.18,'triangle',0.06,0.09);tone(1320,0.2,'triangle',0.06,0.18);
   }else return;
   dirty=true;render();hudTick();
 }
@@ -746,6 +1111,7 @@ function weightsArr(){var a=[],i,lm=luckMul(),as=Math.min(MAX_ASC,G.asc|0),rest=
   for(i=0;i<NR;i++)a.push(as<ASC_REQ[i]?0:RAR[i].w*Math.pow(0.6,Math.max(0,i-2))*Math.pow(1+0.09*G.up.luck*i,0.62)*(i>=2?lm:1)*(i>=7&&i<13?1+0.6*as:1));
   for(i=0;i<13;i++)rest+=a[i];
   for(i=13;i<NR;i++){lk=Math.min(2.5,Math.pow(1+0.09*G.up.luck*i,0.62)*lm);a[i]=as<ASC_REQ[i]?0:rest*HI_P[i]*(i>=15?80:Math.min(80,Math.pow(2.4,as-ASC_REQ[i]+3)))*lk;}
+  if(xOn&&G.x)for(i=0;i<NR;i++)a[i]*=xRb(i);
   return a;}
 function odds(){var a=weightsArr(),tot=0,i;for(i=0;i<NR;i++)tot+=a[i];return a.map(function(v){return v/tot*100;});}
 function rollRar(){var a=weightsArr(),tot=0,i;for(i=0;i<NR;i++)tot+=a[i];var r=Math.random()*tot;for(i=0;i<NR;i++){r-=a[i];if(r<=0)return i;}return 0;}
@@ -842,6 +1208,13 @@ function bpFarm(b){
   var f=faceById(b.id);if(f)f.farm=true;
   dirty=true;return 'ok';
 }
+// Backpack -> Crew: like bpFarm, the face goes into the Base first (needs a free Base slot) and is then made crew (needs a free Crew slot). Returns 'ok', 'crew' (no slot free) or 'base' (Base full). The slot is checked first so a full Crew never pulls a face into the Base.
+function bpCrew(b){
+  if(crewList().length>=slots())return 'crew';
+  if(!bpPlace(b))return 'base';
+  var f=faceById(b.id);if(f)setCrew(f,true);
+  dirty=true;return 'ok';
+}
 // Base -> backpack. The face keeps its id, level and earnings; crew/farm roles end because only Base faces can hold them. Locked faces stay put.
 function bpStash(f){
   if(f.lock){toast('Unlock it first!',true);return false;}
@@ -873,6 +1246,17 @@ function bpAct(a,b){
     list=bp.filter(function(y){return bpSel[y.id];}).sort(function(p,q){return farmFm(q)-farmFm(p);});
     n=0;t='ok';for(i=0;i<list.length;i++){t=bpFarm(list[i]);if(t!=='ok')break;n++;}
     if(!n)toast(t==='base'?'Base is full!':t==='farm'?'Farm is full! Buy more plots in the Farm tab.':'Nothing to place',true);else toast('Moved '+n+' to the Farm'+(t!=='ok'?(t==='farm'?' (Farm full)':' (Base full)'):''),true);
+    return true;
+  }
+  if(a==='bpcrew'){
+    x=bpFind(id);
+    if(x){t=bpCrew(x);if(t==='crew')toast('Crew is full! Buy Crew Slots in the Crew tab.',true);else if(t==='base')toast('Base is full!',true);else toast('Moved '+faceName(x)+' to your Crew',true);}
+    return true;
+  }
+  if(a==='bpcrewsel'){
+    list=bp.filter(function(y){return bpSel[y.id];}).sort(function(p,q){return crewFm(q)-crewFm(p);});
+    n=0;t='ok';for(i=0;i<list.length;i++){t=bpCrew(list[i]);if(t!=='ok')break;n++;}
+    if(!n)toast(t==='base'?'Base is full!':t==='crew'?'Crew is full! Buy Crew Slots in the Crew tab.':'Nothing to place',true);else toast('Moved '+n+' to your Crew'+(t!=='ok'?(t==='crew'?' (Crew full)':' (Base full)'):''),true);
     return true;
   }
   if(a==='bpsell'){x=bpFind(id);if(x)bpSellList([x]);return true;}
@@ -959,7 +1343,7 @@ function catchFace(x,y,src){
 }
 function landCatch(x,y,src){
   var r=rollRar(),m=rollMut(),key=r+'_'+m,isNew=!G.book[key],f=makeFace(r,m,1),nm=faceName(f),col=faceCol(f);
-  var prevBest=bestRar();G.book[key]=(G.book[key]||0)+1;G.caught++;xMastery();if(isNew)disc++;if(r>prevBest)newBest(r,m,prevBest);
+  var prevBest=bestRar();G.book[key]=(G.book[key]||0)+1;G.caught++;xMastery();xCatch(r,m);if(isNew)disc++;if(r>prevBest)newBest(r,m,prevBest);
   qCatch(r,m);
   x=clamp(x,10,W-10);
   var yy=Math.max(y,y0+8);
@@ -1104,9 +1488,9 @@ function step(){
 function buildBg(){
   bg=document.createElement('canvas');bg.width=Math.round(W*dpr);bg.height=Math.round(H*dpr);
   var g=bg.getContext('2d');g.scale(dpr,dpr);
-  var sk=g.createLinearGradient(0,0,0,y0);var sc0=cosV('sky');sk.addColorStop(0,sc0[0]);sk.addColorStop(0.65,sc0[1]);sk.addColorStop(1,sc0[2]);
+  var sk=g.createLinearGradient(0,0,0,y0);var sc0=xVis('sky')||cosV('sky');sk.addColorStop(0,sc0[0]);sk.addColorStop(0.65,sc0[1]);sk.addColorStop(1,sc0[2]);
   g.fillStyle=sk;g.fillRect(0,0,W,y0+10);
-  var wt=g.createLinearGradient(0,y0,0,H);var se0=cosV('sea');wt.addColorStop(0,se0[0]);wt.addColorStop(0.35,se0[1]);wt.addColorStop(0.75,se0[2]);wt.addColorStop(1,se0[3]);
+  var wt=g.createLinearGradient(0,y0,0,H);var se0=xVis('sea')||cosV('sea');wt.addColorStop(0,se0[0]);wt.addColorStop(0.35,se0[1]);wt.addColorStop(0.75,se0[2]);wt.addColorStop(1,se0[3]);
   g.fillStyle=wt;g.fillRect(0,y0,W,H-y0);
   if(ready()){
     var tw=HB*0.95,th=tw*1.345,r=0,x,y;g.globalAlpha=0.09;
@@ -1803,7 +2187,7 @@ function drawFish(){
   var cosKey=(G.cos.sky|0)+'_'+(G.cos.sea|0);
   if(cosKey!==bgCK){bgCK=cosKey;buildBg();}
   ctx.drawImage(bg,0,0,W,H);nightF=dayN();drawTone();
-  drawSky();if(!PH()){drawRays();drawCaustics();drawSchools();drawJellies();drawAmbient();}drawDepth();if(!PH())drawAurora();
+  drawSky();if(!PH()){drawRays();drawCaustics();drawSchools();drawJellies();drawAmbient();xAmb();}drawDepth();if(!PH())drawAurora();
   waterPath(0);ctx.fillStyle='rgba(40,140,255,.2)';ctx.fill();
   ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.75)';ctx.beginPath();ctx.moveTo(0,waveY(0,0));for(i=6;i<W+6;i+=6)ctx.lineTo(i,waveY(i,0));ctx.stroke();
   ctx.lineWidth=2;ctx.strokeStyle='rgba(200,250,255,.35)';ctx.beginPath();ctx.moveTo(0,waveY(0,2)+5);for(i=6;i<W+6;i+=6)ctx.lineTo(i,waveY(i,2)+5);ctx.stroke();
@@ -1868,8 +2252,63 @@ function facesHtml(){
   for(i=0;i<sorted.length;i++)h+=faceCard(sorted[i]);
   return h;
 }
+// ---- Gem Shop wheel (owner preview): costs gems, weighted rewards. The prize is decided and paid when you spin; the animation only reveals it. ----
+var XWHEEL={cost:5,seg:[
+{i:'&#128176;',n:'Coin pouch',d:'1 minute of income',w:40,c:'#2f8f5a',k:'cash',m:60},
+{i:'&#127808;',n:'Luck bait',d:'2 minutes',w:20,c:'#2f6fb5',k:'bait',b:'luck',s:120},
+{i:'&#129516;',n:'Mutation bait',d:'2 minutes',w:15,c:'#8a4fc4',k:'bait',b:'mut',s:120},
+{i:'&#128181;',n:'Cash bait',d:'2 minutes',w:12,c:'#b58a2f',k:'bait',b:'cash',s:120},
+{i:'&#128091;',n:'Big purse',d:'10 minutes of income',w:8,c:'#c4623b',k:'cash',m:600},
+{i:'&#11088;',n:'Legendary face',d:'a free face',w:3.8,c:'#d4a017',k:'face',r:4},
+{i:'&#128142;',n:'Mythic face',d:'a free face',w:1.1,c:'#d43b5a',k:'face',r:5},
+{i:'&#128081;',n:'JACKPOT: Omega face',d:'a free Omega face (best rarity your ascensions allow)',w:0.1,c:'#9aa6ff',k:'face',r:11}]};
+var xWh={spin:false,ang0:0,ang1:0,t0:0,dur:3600,res:'',idx:-1};
+function xWhAng(){
+  if(!xWh.spin)return xWh.ang1;
+  var p=Math.min(1,(performance.now()-xWh.t0)/xWh.dur),e=1-Math.pow(1-p,3);
+  return xWh.ang0+(xWh.ang1-xWh.ang0)*e;
+}
+function xWhLoop(){
+  var el=$('whl');
+  if(el)el.style.transform='rotate('+xWhAng()+'deg)';
+  if(xWh.spin&&performance.now()-xWh.t0<xWh.dur){requestAnimationFrame(xWhLoop);return;}
+  xWh.spin=false;
+  if(el)el.style.transform='rotate('+xWh.ang1+'deg)';
+  var sg=XWHEEL.seg[xWh.idx];
+  if(sg&&sg.k==='face'&&sg.r===11)banner('JACKPOT!',xWh.res,'#9aa6ff');
+  toast(xWh.res,true);tone(660,0.1,'triangle',0.06);tone(990,0.18,'triangle',0.06,0.09);tone(1320,0.2,'triangle',0.06,0.18);
+  dirty=true;if(tab==='gemshop')render();hudTick();
+}
+function xWheelSpin(){
+  if(!xOn||xWh.spin)return;
+  if(G.gems<XWHEEL.cost){toast('Not enough gems',true);return;}
+  var tot=0,r,i,idx=0,sg,msg,v,cen,jit,base;
+  for(i=0;i<XWHEEL.seg.length;i++)tot+=XWHEEL.seg[i].w;
+  r=Math.random()*tot;
+  for(i=0;i<XWHEEL.seg.length;i++){r-=XWHEEL.seg[i].w;if(r<0){idx=i;break;}}
+  sg=XWHEEL.seg[idx];
+  G.gems-=XWHEEL.cost;G.gsp+=XWHEEL.cost; // spent gems keep their income bonus, like every other Gem Shop purchase
+  if(sg.k==='cash'){v=Math.max(500,curInc*sg.m);earn(v);msg='You won $'+fmt(v)+'!';}
+  else if(sg.k==='bait'){G.bf[sg.b]+=sg.s;msg='You won '+BAITS[sg.b].n+' for '+sg.s+'s!';}
+  else{var fr=Math.min(sg.r,maxRarFor(G.asc|0)),nf=devAdd(fr,0,1);msg='You won a '+RAR[fr].n+' face!';}
+  xWh.idx=idx;xWh.res=msg;
+  cen=idx*45+22.5;jit=(Math.random()*2-1)*16;
+  base=Math.ceil(xWh.ang1/360)*360+1800;
+  xWh.ang0=xWh.ang1;xWh.ang1=base+360-((cen+jit+360)%360);
+  xWh.t0=performance.now();xWh.spin=true;
+  tone(440,0.06,'square',0.04);
+  dirty=true;render();hudTick();
+  requestAnimationFrame(xWhLoop);
+}
+function xWheelHtml(){
+  var sgs=XWHEEL.seg,grad=sgs.map(function(s,i){return s.c+' '+i*45+'deg '+(i+1)*45+'deg';}).join(','),lab='',tot=0,h,i,can=!xWh.spin&&G.gems>=XWHEEL.cost;
+  for(i=0;i<sgs.length;i++){tot+=sgs[i].w;lab+=`<div style='position:absolute;inset:0;transform:rotate(${i*45+22.5}deg)'><span style='position:absolute;top:7%;left:50%;transform:translateX(-50%);font-size:clamp(16px,5vw,24px);line-height:1'>${sgs[i].i}</span></div>`;}
+  h=`<div class='sech'>&#127905; Lucky Wheel</div><div class='card' style='--rc:#ffd23f;display:block;text-align:center;padding:12px 8px'><div style='position:relative;width:min(220px,62%);aspect-ratio:1;margin:8px auto 14px'><div style='position:absolute;left:50%;top:-10px;transform:translateX(-50%);z-index:2;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:18px solid #fff;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))'></div><div id='whl' style='position:absolute;inset:0;border-radius:50%;border:4px solid #ffe36b;box-shadow:0 0 18px rgba(255,227,107,.45),inset 0 0 12px rgba(0,0,0,.5);background:conic-gradient(${grad});transform:rotate(${xWhAng()}deg)'>${lab}<div style='position:absolute;left:50%;top:50%;width:22%;height:22%;transform:translate(-50%,-50%);border-radius:50%;background:#222;border:3px solid #ffe36b'></div></div></div><button class='btn gold' data-a='wspin'${can?'':' disabled'}>&#128142; Spin for ${XWHEEL.cost} gems</button>${xWh.res?`<div style='margin-top:8px;font-weight:900;color:#9be8a8'>${esc(xWh.res)}</div>`:''}</div><div class='note'>Odds per spin: `+sgs.map(function(s){return s.i+' '+esc(s.n)+' <b>'+(s.w/tot*100).toFixed(s.w<1?1:s.w<10?1:0)+'%</b>';}).join(' &bull; ')+`. The jackpot gives an Omega face; below 11 ascensions you get the rarest face your ascensions allow.</div>`;
+  return h;
+}
 function gemShopHtml(){
   var h=`<div class='note'>&#128142; Gems: <b>${G.gems}</b>. Gems come from chests, bubbles, quests and the daily streak. Every gem you have ever earned keeps its +10% income bonus, even after you spend it here. Cosmetics are kept when you ascend.</div>`,ci,i,l,it,own,on,ck;
+  if(xOn)h+=xWheelHtml();
   for(ci=0;ci<COSK.length;ci++){
     ck=COSK[ci];l=COS[ck];
     h+=`<div class='sech'>${COSL[ck]}</div>`;
@@ -1893,7 +2332,7 @@ function bpHtml(){
   h+=`<div class='note'>Catches land here first. Place faces in your Base, put them on the Farm or sell them. Auto-sell sells every catch at or below the chosen rarity, whatever its mutation. A full backpack loses new catches.</div>`;
   h+=`<div class='tools'><button class='btn' data-a='asellprev' title='Previous auto-sell rarity'>&#9664;</button><button class='btn' data-a='asell' title='Click for the next rarity'>&#9851; Auto-sell: ${G.as<0?'OFF':'&le; '+RAR[G.as].n} &#9654;</button>`;
   h+=`<button class='btn mini2 red' data-a='bpsweep' title='Sell the faces already in the backpack that auto-sell would take'${sw?'':' disabled'}>&#128176; Sell ${sw} now</button></div>`;
-  h+=`<div class='tools'><button class='btn mini2' data-a='bpfill'${bp.length&&faces.length<capN()?'':' disabled'}>&#127968; Fill Base (best)</button><button class='btn mini2' data-a='bpplacesel'${sc?'':' disabled'}>&#127968; Place ${sc}</button><button class='btn mini2 green' data-a='bpfarmsel' title='Put the selected faces on the Farm'${sc?'':' disabled'}>&#127806; Farm ${sc}</button><button class='btn mini2 red' data-a='bpsellsel'${sc?'':' disabled'}>&#128176; Sell ${sc}</button><button class='btn mini2' data-a='bpclearsel'${sc?'':' disabled'}>Clear selection</button></div>`;
+  h+=`<div class='tools'><button class='btn mini2' data-a='bpfill'${bp.length&&faces.length<capN()?'':' disabled'}>&#127968; Fill Base (best)</button><button class='btn mini2' data-a='bpplacesel'${sc?'':' disabled'}>&#127968; Place ${sc}</button><button class='btn mini2 green' data-a='bpfarmsel' title='Put the selected faces on the Farm'${sc?'':' disabled'}>&#127806; Farm ${sc}</button><button class='btn mini2 green' data-a='bpcrewsel' title='Put the selected faces in your Crew, best first'${sc?'':' disabled'}>&#127907; Crew ${sc}</button><button class='btn mini2 red' data-a='bpsellsel'${sc?'':' disabled'}>&#128176; Sell ${sc}</button><button class='btn mini2' data-a='bpclearsel'${sc?'':' disabled'}>Clear selection</button></div>`;
   if(!bp.length)return h+`<div class='note big'>Your backpack is empty.<br>Go fishing &#127907;</div>`;
   h+=`<div class='sech'>Sell a whole rarity (all mutations)</div><div class='tools'>`;
   for(i=NR-1;i>=0;i--)if(cnt[i])h+=`<button class='btn mini2' data-a='bpsellrar' data-r='${i}' title='Sell every ${RAR[i].n} face in the backpack'>&#128176; <span style='color:${RAR[i].c}'>${RAR[i].n}</span> &times;${cnt[i]}</button>`;
@@ -1901,7 +2340,7 @@ function bpHtml(){
   var sorted=bp.slice().sort(function(a,b){return b.rar-a.rar||b.mut-a.mut||b.lvl-a.lvl;}),show=Math.min(100,sorted.length);
   for(i=0;i<show;i++){
     b=sorted[i];var on=!!bpSel[b.id];
-    h+=`<div class='card r${b.rar}${on?' bsel':''}'><div class='fi m${b.mut}${spCls(b.rar)}'></div><div class='info'><b class='${isRb(b.rar)?'rbt':''}${nmCls(b.rar)}'>${faceName(b)}</b><small>Lv ${b.lvl} &bull; $${fmt(faceInc(b)*gMult())}/s</small></div><div class='acts'><button class='mini${on?' on':''}' data-a='bpsel' data-id='${b.id}' title='Select'>${on?'&#9745;':'&#9744;'}</button><button class='mini' data-a='bpplace' data-id='${b.id}' title='Place in Base'>&#127968;</button><button class='mini' data-a='bpfarm' data-id='${b.id}' title='Place on the Farm'>&#127806;</button><button class='mini sell' data-a='bpsell' data-id='${b.id}'>&#128176; $${fmt(sellValue(b))}</button></div></div>`;
+    h+=`<div class='card r${b.rar}${on?' bsel':''}'><div class='fi m${b.mut}${spCls(b.rar)}'></div><div class='info'><b class='${isRb(b.rar)?'rbt':''}${nmCls(b.rar)}'>${faceName(b)}</b><small>Lv ${b.lvl} &bull; $${fmt(faceInc(b)*gMult())}/s</small></div><div class='acts'><button class='mini${on?' on':''}' data-a='bpsel' data-id='${b.id}' title='Select'>${on?'&#9745;':'&#9744;'}</button><button class='mini' data-a='bpplace' data-id='${b.id}' title='Place in Base'>&#127968;</button><button class='mini' data-a='bpfarm' data-id='${b.id}' title='Place on the Farm'>&#127806;</button><button class='mini' data-a='bpcrew' data-id='${b.id}' title='Put in your Crew'>&#127907;</button><button class='mini sell' data-a='bpsell' data-id='${b.id}'>&#128176; $${fmt(sellValue(b))}</button></div></div>`;
   }
   if(sorted.length>show)h+=`<div class='note'>Showing the best ${show} of ${sorted.length}. Sell by rarity above to thin out the rest.</div>`;
   return h;
@@ -1957,7 +2396,24 @@ function farmHtml(){
   for(i=0;i<FUK.length;i++)h+=upCard(FUK[i]);
   return h;
 }
-function bookHtml(){
+function xBookHtml(){
+  var x=xInit(),pct=Math.floor(disc*100/XT.book.total),h=`<div class='sech'>&#127942; Collection goals</div>`,m,r,n,tot,i;
+  XT.book.goals.forEach(function(g){
+    var got=!!x.bc[g.id],can=pct>=g.pct,rw=Object.keys(g.mat).map(function(id){var mt=XT.mats.filter(function(q){return q.id===id;})[0];return g.mat[id]+' '+(mt?mt.i+' '+mt.n:id);}).join(' ');
+    h+=xCard(got?'#9be8a8':can?'#ffd23f':'#7dd3ff','&#128214; '+esc(g.n)+' ('+g.pct+'%)','Reward: '+rw+' &bull; title: '+esc(g.ttl)+(got||can?'':'<br>'+disc+' / '+Math.ceil(g.pct*XT.book.total/100)+' entries'),got?`<small style='color:#9be8a8'>Claimed</small>`:`<button class='btn' data-xa='bgoal' data-t='${g.id}'${can?'':' disabled'}>Claim</button>`);
+  });
+  h+=`<div class='sech'>&#10024; By mutation</div><div style='display:flex;flex-wrap:wrap;gap:6px;padding:4px 2px'>`;
+  for(m=0;m<MUT.length;m++){n=0;for(r=0;r<NR;r++)if(G.book[r+'_'+m])n++;h+=`<span class='pill'>${MUT[m].n} ${n}/${NR}</span>`;}
+  h+=`</div><div class='sech'>&#128506; Place exclusives</div>`;
+  XT.locs.forEach(function(l,j){
+    if(!l.exc||x.locs.indexOf(j)<0)return;
+    n=0;l.exc.forEach(function(e,k){if(x.exc[j+'_'+k])n++;});
+    h+=xCard(n>=l.exc.length?'#9be8a8':'#7dd3ff',esc(l.n),l.exc.map(function(e,k){return x.exc[j+'_'+k]?esc(e.n):'???';}).join(' &bull; '),`<small>${n}/${l.exc.length}</small>`);
+  });
+  return h;
+}
+function bookHtml(){var b=bookBase();return xOn&&G.x?xBookHtml()+`<div class='sech'>&#128214; The Book</div>`+b:b;}
+function bookBase(){
   var h=`<div class='note'>Discovered <b>${disc}/${NR*5}</b> &bull; +${disc*3}% cash. Every new rarity and mutation combo you catch adds +3% cash. Catching a rarity higher than ever before triggers a NEW BEST celebration.</div><table class='bk'><tr><th></th>`,m,r,key,found,secret;
   for(m=0;m<5;m++)h+=`<th>${MUT[m].n}</th>`;
   h+='</tr>';
@@ -2004,6 +2460,7 @@ function statsHtml(){
   if(bk)h+=goalCard(UPS[bk].i,'Cheapest upgrade: '+UPS[bk].n,'Level '+(G.up[bk]+1)+' costs $'+fmt(bc),G.coins/bc);
   h+=goalCard('&#128214;','Fill the Book',disc+'/'+NR*5+' entries discovered (+3% cash each)',disc/(NR*5));
   h+=G.asc>=MAX_ASC?goalCard('&#127775;','Maximum ascension reached','Ascension '+MAX_ASC+' of '+MAX_ASC,1):goalCard('&#127775;',g>=1?'You can afford to ascend':'Next ascension','$'+fmt(G.coins)+' / $'+fmt(nx)+' cash',Math.min(1,G.coins/nx));
+  if(xOn&&G.x)h+=xStatsHtml();
   h+=`<div class='sech'>&#128202; Lifetime stats</div>`;
   h+=srow('Play time',Math.floor(pt/3600)+'h '+Math.floor(pt%3600/60)+'m');
   h+=srow('Faces caught',fmt(G.caught));
@@ -2022,14 +2479,14 @@ function statsHtml(){
   h+=srow('Farm view','F');
   return h;
 }
-var TABT={faces:'Faces',shop:'Upgrades',crew:'Crew',farm:'Farm',quests:'Quests',book:'Book',stats:'Stats',asc:'Ascend',top:'Top',trade:'Trade',chat:'Chat',backpack:'Backpack',gemshop:'Gem Shop',settings:'Settings',xloc:'Locations',xrod:'Rods',xevt:'Events'};
+var TABT={faces:'Faces',shop:'Upgrades',crew:'Crew',farm:'Farm',quests:'Quests',book:'Book',stats:'Stats',asc:'Ascend',top:'Top',trade:'Trade',chat:'Chat',backpack:'Backpack',gemshop:'Gem Shop',settings:'Settings',xloc:'Locations',xrod:'Rods',xpro:'Promo Code',xtrn:'Tournament'};
 function render(){
   var st=body.scrollTop,h='',tb0=document.querySelectorAll('.tab'),i0;
   for(i0=0;i0<tb0.length;i0++)tb0[i0].classList.toggle('on',tb0[i0].dataset.tab===tab);
   $('drawer').classList.toggle('open',!!tab);
   if(!tab){dirty=false;return;}
   $('dtitle').textContent=TABT[tab]||'';
-  if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='farm')h=farmHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else if(tab==='settings')h=settingsHtml();else if(tab==='trade')h=tradeHtml();else if(tab==='backpack')h=bpHtml();else if(tab==='chat')h=chatHtml();else if(tab==='gemshop')h=gemShopHtml();else if(tab==='xloc')h=xLocHtml();else if(tab==='xrod')h=xRodHtml();else if(tab==='xevt')h=xEvtHtml();else h=ascHtml();
+  if(tab==='faces')h=facesHtml();else if(tab==='shop')h=shopHtml();else if(tab==='crew')h=crewHtml();else if(tab==='farm')h=farmHtml();else if(tab==='quests')h=questsHtml();else if(tab==='book')h=bookHtml();else if(tab==='top')h=topHtml();else if(tab==='stats')h=statsHtml();else if(tab==='settings')h=settingsHtml();else if(tab==='trade')h=tradeHtml();else if(tab==='backpack')h=bpHtml();else if(tab==='chat')h=chatHtml();else if(tab==='gemshop')h=gemShopHtml();else if(tab==='xloc')h=xLocHtml();else if(tab==='xrod')h=xRodHtml();else if(tab==='xpro')h=xProHtml();else if(tab==='xtrn')h=xTrnHtml();else h=ascHtml();
   body.innerHTML=h;body.scrollTop=st;if(tab==='chat')chatPaint(true);
   var tb=document.querySelectorAll('.tab');
   for(var i=0;i<tb.length;i++)tb[i].classList.toggle('on',tb[i].dataset.tab===tab);
@@ -2222,6 +2679,7 @@ function faceChips(top){
 }
 var MED=['&#129351;','&#129352;','&#129353;'];
 var LBV=[['life','Total'],['peak','Peak'],['inc','Income'],['asc','Ascends'],['book','Book']];
+function xTtlTag(t){return (xOn&&typeof t==='string'&&t)?`<span class='xttl' title='Title: ${esc(t)}'>${esc(t)}</span>`:'';}
 function devTag(t){return t?`<span class='devtag${t==='owner'?' own':''}' title='${t==='owner'?'Owner':'Developer'}'>DEV</span>`:'';}
 function glowCls(t){return t?' glow'+(t==='owner'?' own':''):'';}
 var LBNOTE={life:'Ranked by all the money you have ever earned, across every ascension. You keep your place when you ascend.',peak:'Ranked by the most money you have held at once.',inc:'Ranked by the best income per second you have reached, across ascensions.',asc:'Ranked by ascensions, then by Book entries.',book:'Ranked by the most Book entries you have ever reached, then by ascensions.'};
@@ -2251,7 +2709,7 @@ function openProf(u){
 }
 function profHtml(){
   var p=acct.prof,x,h;if(!p)return '';
-  h=`<div class='prof'><div class='ph'><b class='${glowCls(p.p&&p.p.dev).trim()}'>${esc(p.name)}</b>${p.p?devTag(p.p.dev):''}<button class='btn red' data-a='profclose'>&#10005;</button></div>`;
+  h=`<div class='prof'><div class='ph'><b class='${glowCls(p.p&&p.p.dev).trim()}'>${esc(p.name)}</b>${p.p?devTag(p.p.dev)+xTtlTag(p.p.ttl):''}<button class='btn red' data-a='profclose'>&#10005;</button></div>`;
   if(p.loading)h+=`<div class='note'>Loading...</div>`;
   else if(p.err)h+=`<div class='note'>${esc(p.err)}</div>`;
   else{
@@ -2295,10 +2753,10 @@ function topHtml(){
   else if(!acct.rows.length)h+=`<div class='note'>No one is ranked yet. Be the first!</div>`;
   else for(i=0;i<acct.rows.length;i++){
     r=acct.rows[i];mine=acct.token&&r.name===acct.name;
-    h+=`<div class='lbrow${mine?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><button class='lbname${glowCls(r.dev)}' data-a='profile' data-u='${esc(r.name)}'>${esc(r.name)}</button>${devTag(r.dev)}${ago(r.t)==='now'?`<span class='dot' title='Online now'></span>`:''}</div><small>${lbMetric(r)} &bull; best ${RAR[r.bestEver|0]?RAR[r.bestEver|0].n:'?'} &bull; ${ago(r.t)}</small><div class='lbf'>${faceChips(r.top)}</div></div></div>`;
+    h+=`<div class='lbrow${mine?' me':''}'><div class='rk'>${i<3?MED[i]:'#'+(i+1)}</div><div class='lbi'><div><button class='lbname${glowCls(r.dev)}' data-a='profile' data-u='${esc(r.name)}'>${esc(r.name)}</button>${devTag(r.dev)}${xTtlTag(r.ttl)}${ago(r.t)==='now'?`<span class='dot' title='Online now'></span>`:''}</div><small>${lbMetric(r)} &bull; best ${RAR[r.bestEver|0]?RAR[r.bestEver|0].n:'?'} &bull; ${ago(r.t)}</small><div class='lbf'>${faceChips(r.top)}</div></div></div>`;
   }
   h+=`<div class='tools'><button class='btn' data-a='lbrefresh'>Refresh</button></div><div class='note'>${LBNOTE[acct.view]}</div>`;
-  return h+feedHtml();
+  return h+xTnHtml()+xCrHtml()+feedHtml();
 }
 
 // ---------- ACTIONS ----------
@@ -2369,11 +2827,13 @@ function onAct(e){
   }
   else if(a.slice(0,2)==='bp'&&bpAct(a,b)){}
   else if(a==='bait'){k=b.dataset.k;c=baitCost(k);if(BAITS[k]&&G.coins>=c){G.coins-=c;G.bf[k]+=60;tone(500,0.1,'triangle',0.06);tone(750,0.16,'triangle',0.06,0.08);burst(W/2,y0+60,3,0);toast(BAITS[k].n+' active for 60s!');}}
+  else if(a==='wspin'){xWheelSpin();return;}
   else if(a==='login'||a==='signup'){doAuth(a);}
   else if(a==='logout'){signOut('');}
   else if(a==='pwtoggle'){acct.pwOpen=!acct.pwOpen;acct.msg='';}
   else if(a==='pwsave'){changePw();}
-  else if(a==='lbrefresh'){fetchLb(true);}
+  else if(a==='lbrefresh'){fetchLb(true);xTnFetch(true);xCrFetch(true);}
+  else if(a==='xtclaim'){xTnClaim(+b.dataset.w);}
   else if(a==='lbview'){setLbView(b.dataset.v);}
   else if(a==='profile'){openProf(b.dataset.u);}
   else if(a==='profclose'){acct.prof=null;}
@@ -2837,6 +3297,7 @@ function devAdminSection(){
     +devB('adm_kick','Kick')+devB('adm_ban',devArm==='ban'?'Confirm ban':'Ban','red')+devB('adm_unban','Unban')
     +devB('adm_reset',devArm==='reset'?'Confirm reset':'Reset player','red')+devB('adm_quarantine','Quarantine')+devB('adm_unflag','Unflag')
     +(own?devB('adm_makeadmin',devArm==='makeadmin'?'Confirm make admin':'Make admin','green')+devB('adm_revoke',devArm==='revoke'?'Confirm revoke':'Revoke admin','red')+devB('adm_devtag','Give DEV tag','green')+devB('adm_undevtag','Remove DEV tag'):'')+devB('adm_flags','Show flags')+`</div><div class='sech'>Chat mute</div><div class='note'>Stops the player above from talking in the chat for the time you pick.</div><div class='dg'>`+devB('adm_mute_10','Mute 10 min')+devB('adm_mute_60','Mute 1 hour')+devB('adm_mute_360','Mute 6 hours')+devB('adm_mute_1440','Mute 1 day')+devB('adm_mute_10080','Mute 7 days')+devB('adm_unmute','Unmute','green')+`</div>`;
+  if(own)h+=`<div class='sech'>Expansion preview</div><div class='note'>${xOn?'The expansion is <b>ON</b> for your account only. Everyone else still sees the current game and gets no update alert.':'The expansion is <b>OFF</b>. You are playing the current game, the same as everyone else.'}</div><div class='dg'>`+(xOn?devB('adm_xprev','Back to the current game','red'):devB('adm_xprev','Preview the expansion','green'))+`</div>`;
   if(own){
     var gi,gro='',gmo='',glo='',gco='';
     for(gi=0;gi<NR;gi++)gro+=`<option value='${gi}'${gi===devGR?' selected':''}>${RAR[gi].n}</option>`;
@@ -2900,6 +3361,15 @@ function devOwnerSync(){
 function devAdmin(a){
   var u=$('dau'),w=$('daw'),nm;
   if(a==='redeem'){devRedeem();return;}
+  if(a==='xprev'){ // owner only: the server refuses anyone else. Flips the preview for this owner account, nothing is pushed to players.
+    devArm='';devMsg='Switching...';devRender();
+    devCall({action:'expansion',on:!xOn},function(j){
+      xApply({expansion:!!j.on});
+      devMsg=j.on?'Expansion preview is ON for your account only.':'Back to the current game. The expansion is off.';
+      render();hudTick();
+    });
+    return;
+  }
   if(u){nm=u.value.trim();devAU=/^[A-Za-z0-9_.-]{0,16}$/.test(nm)?nm:'';}
   if(w)devAW=w.value.trim().slice(0,32);
   if(a==='flags'){devArm='';devMsg='Loading...';devRender();devCall({action:'flags'},function(j){devFlags=j;devMsg='Showing the latest flags.';});return;}

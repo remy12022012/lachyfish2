@@ -14,6 +14,7 @@ function pub(p, dev) {
     bookMax: Number.isFinite(p.bookMax) ? p.bookMax : p.book,
     bestEver: p.bestEver, bestMut: p.bestMut, top: p.top, cps: p.cps, created: p.created, t: p.t,
   };
+  if (typeof p.ttl === 'string' && p.ttl) o.ttl = p.ttl.slice(0, 24); // equipped title, shown next to the name while the expansion preview is on
   if (dev) o.dev = dev; // 'owner' or 'dev': shown as a glowing DEV tag next to the name (staff admins get no tag unless an owner gave them one)
   return o;
 }

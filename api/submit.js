@@ -7,6 +7,7 @@ const { adminOf } = require('../lib/adminCodes');
 const MAX_ASC_JUMP = 2; // ascensions gained between two syncs (each costs cash and wipes the run, so more than this in one sync is tampering)
 const FEED_MIN_RAR = 5; // only Mythic and above make the activity feed
 // lb:life ranks lifetime earnings (the default view), so a player keeps their place after ascending; lb:book ranks the best Book count ever reached.
+const XPAND = require('../lib/expansion');
 const BOARDS = ['lb:life', 'lb:peak', 'lb:inc', 'lb:asc', 'lb:book'];
 
 module.exports = handler(['POST'], async (req, res, store) => {
@@ -78,6 +79,8 @@ module.exports = handler(['POST'], async (req, res, store) => {
     bestMut: prev ? Math.max(prev.bestMut, s.bestMut) : s.bestMut,
     top: s.top.length ? s.top : (prev ? prev.top : []),
     cps: s.cps,
+    // The equipped expansion title (display name). The id was already bounds-checked inside the save by validateX, and a Book title needs its goal claimed.
+    ttl: (() => { const sv = parseJSON(s.save); return sv && sv.G && sv.G.x ? XPAND.titleName(sv.G.x.ttl) : ''; })(),
     ascAt: asc > prevAsc ? now : (prev && prev.ascAt) || 0,
     created: prev ? prev.created : user.created || now,
     // What the last accepted sync looked like: the next sync's growth checks compare against these.
@@ -105,6 +108,11 @@ module.exports = handler(['POST'], async (req, res, store) => {
       store.zadd('lb:asc', p.asc * 1000 + p.book, lname),
       store.zadd('lb:book', p.bookMax * 10000 + p.asc, lname),
     );
+    // Crew competition (owner preview): a board per tournament window ranked by the validated income rate. Only written while the preview flag is on.
+    if (await store.get('cfg:expansion')) {
+      const tw = XPAND.tourneyWindow(now), tk = 'tc:' + tw;
+      writes.push(store.zadd(tk, p.inc, lname), store.expire(tk, XPAND.TOURNEY_KEEP_S + Math.ceil(XPAND.TOURNEY_MS / 1000)));
+    }
   }
   // The save was accepted and no longer holds an offered face, so the record of offered faces can go.
   if (Array.isArray(trx) && trx.length) writes.push(store.del('trx:' + lname));
